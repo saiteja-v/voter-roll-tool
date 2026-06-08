@@ -1,27 +1,17 @@
-# Railway Deployment
+# Railway Backend
 
-This repository has a static GitHub Pages frontend and a Python backend.
+The backend source is intentionally kept in a private repository:
 
-Deploy the backend from the `backend` folder.
+```text
+saiteja-v/voter-roll-backend
+```
 
-## Railway Settings
+Deploy that private repository to Railway, then paste the Railway app URL into
+**Backend API URL** on the public frontend.
 
-- Root directory: `backend`
-- Start command: Railway can use the `Procfile`
-- Health check path: `/health`
-
-Environment variables:
+Recommended Railway environment variables:
 
 ```text
 OCR_WORKERS=2
 ALLOWED_ORIGINS=https://saiteja-v.github.io
-```
-
-After deployment, copy the Railway app URL into the frontend field named
-**Backend API URL**.
-
-Example:
-
-```text
-https://your-app-name.up.railway.app
 ```
