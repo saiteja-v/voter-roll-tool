@@ -20,7 +20,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-hosted-backend";
+const APP_VERSION = "20260608-job-interrupt-message";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -537,6 +537,9 @@ async function convertWithBackend(apiUrl) {
     await sleep(2000);
     const statusResponse = await fetch(`${baseUrl}/jobs/${job.job_id}`);
     if (!statusResponse.ok) {
+      if (statusResponse.status === 404) {
+        throw new Error("The backend lost this job, usually because the server restarted while OCR was running. Please run the PDF again.");
+      }
       throw new Error(`Could not fetch job status (${statusResponse.status}).`);
     }
     job = await statusResponse.json();
