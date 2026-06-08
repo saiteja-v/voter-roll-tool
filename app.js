@@ -80,7 +80,8 @@ function formatBytes(bytes) {
 
 function normalizeId(text) {
   const compact = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return /^[A-Z]{3}\d{7}$/.test(compact) ? compact : null;
+  if (!/^[A-Z]{3}[0-9O]{7}$/.test(compact)) return null;
+  return compact.slice(0, 3) + compact.slice(3).replaceAll("O", "0");
 }
 
 function cleanText(text) {
@@ -142,27 +143,59 @@ function cellBounds(cx, cy, grid) {
   };
 }
 
-function lineFromTesseract(line) {
-  const box = line.bbox || {};
+function itemFromTesseract(item) {
+  const box = item.bbox || {};
   const x1 = box.x0 ?? 0;
   const y1 = box.y0 ?? 0;
   const x2 = box.x1 ?? 0;
   const y2 = box.y1 ?? 0;
   return {
-    text: line.text || "",
+    text: item.text || "",
     x1,
     y1,
     x2,
     y2,
     cx: (x1 + x2) / 2,
     cy: (y1 + y2) / 2,
-    confidence: line.confidence ?? 0,
+    height: Math.max(1, y2 - y1),
+    confidence: item.confidence ?? 0,
   };
 }
 
-function parseCell(lines, voterId) {
-  const useful = lines
+function wordsToLines(words) {
+  const sorted = words
     .slice()
+    .filter((word) => cleanText(word.text))
+    .sort((a, b) => a.cy - b.cy || a.x1 - b.x1);
+  const groups = [];
+
+  for (const word of sorted) {
+    const last = groups.at(-1);
+    const threshold = Math.max(10, word.height * 0.75);
+    if (!last || Math.abs(last.cy - word.cy) > threshold) {
+      groups.push({ cy: word.cy, words: [word] });
+    } else {
+      last.words.push(word);
+      last.cy = last.words.reduce((sum, item) => sum + item.cy, 0) / last.words.length;
+    }
+  }
+
+  return groups.map((group) => {
+    const lineWords = group.words.slice().sort((a, b) => a.x1 - b.x1);
+    return {
+      text: lineWords.map((word) => word.text).join(" "),
+      x1: Math.min(...lineWords.map((word) => word.x1)),
+      y1: Math.min(...lineWords.map((word) => word.y1)),
+      x2: Math.max(...lineWords.map((word) => word.x2)),
+      y2: Math.max(...lineWords.map((word) => word.y2)),
+      cx: lineWords.reduce((sum, word) => sum + word.cx, 0) / lineWords.length,
+      cy: group.cy,
+    };
+  });
+}
+
+function parseCell(words, voterId) {
+  const useful = wordsToLines(words)
     .sort((a, b) => a.cy - b.cy || a.x1 - b.x1)
     .map((line) => cleanText(line.text))
     .filter((text) => {
@@ -256,22 +289,25 @@ async function ocrCanvas(canvas, pageNumber) {
       }
     },
   });
-  return (result.data.lines || []).map(lineFromTesseract);
+  const words = (result.data.words || []).map(itemFromTesseract);
+  const lines = (result.data.lines || []).map(itemFromTesseract);
+  return { words, lines };
 }
 
-function extractRowsFromPage(lines, pageNumber, width, height) {
+function extractRowsFromPage(ocrData, pageNumber, width, height) {
+  const words = ocrData.words.length ? ocrData.words : ocrData.lines;
   const grid = gridFor(width, height);
-  const idLines = lines
-    .map((line) => ({ voterId: normalizeId(line.text), line }))
+  const idLines = words
+    .map((word) => ({ voterId: normalizeId(word.text), word }))
     .filter((item) => item.voterId);
   const seen = new Set();
   const entries = [];
 
-  for (const { voterId, line } of idLines) {
+  for (const { voterId, word } of idLines) {
     if (seen.has(voterId)) continue;
     seen.add(voterId);
-    const bounds = cellBounds(line.cx, line.cy, grid);
-    const cellLines = lines.filter(
+    const bounds = cellBounds(word.cx, word.cy, grid);
+    const cellWords = words.filter(
       (candidate) =>
         candidate.cx >= bounds.x1 &&
         candidate.cx <= bounds.x2 &&
@@ -282,12 +318,12 @@ function extractRowsFromPage(lines, pageNumber, width, height) {
       pageNumber,
       row: bounds.row,
       col: bounds.col,
-      parsed: parseCell(cellLines, voterId),
+      parsed: parseCell(cellWords, voterId),
     });
   }
 
   entries.sort((a, b) => a.row - b.row || a.col - b.col);
-  return entries;
+  return { entries, candidateIds: idLines.map((item) => item.voterId) };
 }
 
 function buildWorkbook(rows, sectionHeading) {
@@ -361,12 +397,23 @@ async function convert() {
       log(`Rendering page ${pageNumber}...`);
       const canvas = await renderPage(pdf, pageNumber);
       log(`OCR page ${pageNumber} at ${canvas.width}x${canvas.height}px...`);
-      const lines = await ocrCanvas(canvas, pageNumber);
-      const entries = extractRowsFromPage(lines, pageNumber, canvas.width, canvas.height);
+      const ocrData = await ocrCanvas(canvas, pageNumber);
+      const { entries, candidateIds } = extractRowsFromPage(ocrData, pageNumber, canvas.width, canvas.height);
       allEntries.push(...entries);
       const progress = ((pageNumber - startPage + 1) / (endPage - startPage + 1)) * 90;
       setProgress(progress);
-      log(`Page ${pageNumber}: ${lines.length} text lines, ${entries.length} voter entries found.`);
+      log(
+        `Page ${pageNumber}: ${ocrData.words.length} words, ${ocrData.lines.length} lines, ` +
+          `${candidateIds.length} ID candidates, ${entries.length} voter entries found.`,
+      );
+      if (!entries.length) {
+        const sample = ocrData.words
+          .slice(0, 30)
+          .map((word) => cleanText(word.text))
+          .filter(Boolean)
+          .join(" ");
+        log(`Page ${pageNumber} sample OCR words: ${sample || "none"}`, "warn");
+      }
     }
 
     allEntries.sort((a, b) => a.pageNumber - b.pageNumber || a.row - b.row || a.col - b.col);
