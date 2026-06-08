@@ -18,7 +18,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-ocr-words";
+const APP_VERSION = "20260608-id-pass";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -85,6 +85,50 @@ function normalizeId(text) {
   return compact.slice(0, 3) + compact.slice(3).replaceAll("O", "0");
 }
 
+function distance(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function normalizeFuzzyId(text) {
+  const exact = normalizeId(text);
+  if (exact) return exact;
+
+  const compact = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (compact.length < 8 || compact.length > 14) return null;
+
+  let bestPrefix = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const prefix of ["NDF", "CST"]) {
+    const score = distance(compact.slice(0, 3), prefix);
+    if (score < bestScore) {
+      bestPrefix = prefix;
+      bestScore = score;
+    }
+  }
+  if (bestScore > 2 || !bestPrefix) return null;
+
+  const digitMap = { O: "0", Q: "0", D: "0", I: "1", L: "1", T: "1", Z: "2", A: "4", S: "5", G: "6", B: "8" };
+  const digits = compact
+    .slice(3)
+    .split("")
+    .map((char) => (/\d/.test(char) ? char : digitMap[char] || ""))
+    .join("")
+    .slice(0, 7);
+  return digits.length === 7 ? `${bestPrefix}${digits}` : null;
+}
+
 function cleanText(text) {
   return String(text || "")
     .replaceAll("|", "I")
@@ -141,6 +185,30 @@ function cellBounds(cx, cy, grid) {
     y2: grid.rowTops[row] + grid.rowHeight,
     row,
     col,
+  };
+}
+
+function boundsForPosition(row, col, grid) {
+  return {
+    x1: grid.colLefts[col] - 8,
+    y1: grid.rowTops[row] - 10,
+    x2: grid.colLefts[col] + grid.colWidth + 8,
+    y2: grid.rowTops[row] + grid.rowHeight,
+    row,
+    col,
+  };
+}
+
+function idBoundsForPosition(row, col, grid) {
+  const scaleX = grid.colWidth / 520;
+  const scaleY = grid.rowHeight / 205;
+  const left = grid.colLefts[col];
+  const top = grid.rowTops[row];
+  return {
+    x1: left + 360 * scaleX,
+    y1: top - 4 * scaleY,
+    x2: left + 520 * scaleX,
+    y2: top + 45 * scaleY,
   };
 }
 
@@ -292,21 +360,71 @@ async function ocrCanvas(canvas, pageNumber) {
   });
   const words = (result.data.words || []).map(itemFromTesseract);
   const lines = (result.data.lines || []).map(itemFromTesseract);
-  return { words, lines };
+  setSummary(`OCR page ${pageNumber}: focused ID pass`);
+  const idResult = await window.Tesseract.recognize(canvas, "eng", {
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    preserve_interword_spaces: "1",
+  });
+  const idWords = (idResult.data.words || []).map(itemFromTesseract);
+  return { words, lines, idWords };
 }
 
 function extractRowsFromPage(ocrData, pageNumber, width, height) {
   const words = ocrData.words.length ? ocrData.words : ocrData.lines;
   const grid = gridFor(width, height);
-  const idLines = words
-    .map((word) => ({ voterId: normalizeId(word.text), word }))
-    .filter((item) => item.voterId);
   const seen = new Set();
   const entries = [];
+  const candidateIds = [];
 
-  for (const { voterId, word } of idLines) {
-    if (seen.has(voterId)) continue;
-    seen.add(voterId);
+  for (let row = 0; row < grid.rowTops.length; row += 1) {
+    for (let col = 0; col < grid.colLefts.length; col += 1) {
+      const bounds = boundsForPosition(row, col, grid);
+      const cellWords = words.filter(
+        (candidate) =>
+          candidate.cx >= bounds.x1 &&
+          candidate.cx <= bounds.x2 &&
+          candidate.cy >= bounds.y1 &&
+          candidate.cy <= bounds.y2,
+      );
+      const cellLines = wordsToLines(cellWords);
+      if (!cellLines.some((line) => /^Name\s*:/i.test(cleanText(line.text)))) continue;
+
+      const idBounds = idBoundsForPosition(row, col, grid);
+      const regionWords = [...ocrData.idWords, ...words].filter(
+        (candidate) =>
+          candidate.cx >= idBounds.x1 &&
+          candidate.cx <= idBounds.x2 &&
+          candidate.cy >= idBounds.y1 &&
+          candidate.cy <= idBounds.y2,
+      );
+      const regionText = regionWords
+        .slice()
+        .sort((a, b) => a.cy - b.cy || a.x1 - b.x1)
+        .map((word) => word.text)
+        .join("");
+      const candidates = [
+        ...regionWords.map((word) => word.text),
+        ...regionWords.map((word, index) => `${word.text}${regionWords[index + 1]?.text || ""}`),
+        regionText,
+      ];
+      const voterId = candidates.map(normalizeFuzzyId).find(Boolean) || "";
+      if (voterId) candidateIds.push(voterId);
+      const seenKey = voterId || `${pageNumber}-${row}-${col}`;
+      if (seen.has(seenKey)) continue;
+      seen.add(seenKey);
+
+      entries.push({
+        pageNumber,
+        row: bounds.row,
+        col: bounds.col,
+        parsed: parseCell(cellWords, voterId),
+      });
+    }
+  }
+
+  for (const word of words) {
+    const voterId = normalizeFuzzyId(word.text);
+    if (!voterId || seen.has(voterId)) continue;
     const bounds = cellBounds(word.cx, word.cy, grid);
     const cellWords = words.filter(
       (candidate) =>
@@ -324,7 +442,7 @@ function extractRowsFromPage(ocrData, pageNumber, width, height) {
   }
 
   entries.sort((a, b) => a.row - b.row || a.col - b.col);
-  return { entries, candidateIds: idLines.map((item) => item.voterId) };
+  return { entries, candidateIds };
 }
 
 function buildWorkbook(rows, sectionHeading) {
@@ -405,7 +523,8 @@ async function convert() {
       setProgress(progress);
       log(
         `Page ${pageNumber}: ${ocrData.words.length} words, ${ocrData.lines.length} lines, ` +
-          `${candidateIds.length} ID candidates, ${entries.length} voter entries found.`,
+          `${ocrData.idWords.length} ID-pass words, ${candidateIds.length} ID candidates, ` +
+          `${entries.length} voter entries found.`,
       );
       if (!entries.length) {
         const sample = ocrData.words
