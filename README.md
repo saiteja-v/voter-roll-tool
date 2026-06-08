@@ -12,6 +12,9 @@ Open `index.html` from a static web server or GitHub Pages, then:
 4. Click **Generate Excel**.
 5. Use the download link when the logs show completion.
 
+Leave **Backend API URL** blank to run browser-only OCR. Add a Railway backend URL
+to use server-side Python OCR instead.
+
 ## GitHub Pages
 
 Commit the `voter-roll-tool` folder and enable GitHub Pages for the repository.
@@ -40,3 +43,9 @@ The page prints live logs for:
 - The first load needs internet because the static page uses CDN libraries for PDF rendering, OCR, and Excel export.
 - Browser OCR is slower than the Python tool. Expect larger rolls to take a few minutes.
 - The parser is tuned for the 3-column Election Roll box layout used in the tested PDF.
+
+## Railway Backend
+
+Deploy the `backend` folder to Railway, then paste the Railway app URL into
+**Backend API URL**. The frontend posts the PDF to `/convert` and downloads the
+server-generated Excel.

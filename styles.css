@@ -122,6 +122,10 @@ small,
   gap: 12px;
 }
 
+.wide-field {
+  grid-column: 1 / -1;
+}
+
 label span {
   display: block;
   margin-bottom: 6px;

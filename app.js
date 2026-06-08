@@ -13,12 +13,13 @@ const els = {
   sectionHeading: document.querySelector("#sectionHeading"),
   startPage: document.querySelector("#startPage"),
   endPage: document.querySelector("#endPage"),
+  backendUrl: document.querySelector("#backendUrl"),
 };
 
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-id-pass";
+const APP_VERSION = "20260608-backend-option";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -494,6 +495,49 @@ function downloadWorkbook(workbook, sourceName) {
   return outputName;
 }
 
+async function convertWithBackend(apiUrl) {
+  const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
+  const endPageInput = Number.parseInt(els.endPage.value, 10);
+  const endpoint = `${apiUrl.replace(/\/+$/, "")}/convert`;
+  const form = new FormData();
+  form.append("file", selectedFile);
+  form.append("polling_station", els.pollingStation.value.trim());
+  form.append("section_heading", els.sectionHeading.value.trim());
+  form.append("start_page", String(startPage));
+  if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
+
+  log(`Uploading PDF to backend: ${endpoint}`);
+  setSummary("Backend conversion running");
+  const response = await fetch(endpoint, { method: "POST", body: form });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = await response.json();
+      detail = json.detail ? ` ${json.detail}` : "";
+    } catch {
+      detail = ` ${await response.text()}`;
+    }
+    throw new Error(`Backend conversion failed (${response.status}).${detail}`);
+  }
+
+  const blob = await response.blob();
+  if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
+  activeDownloadUrl = URL.createObjectURL(blob);
+  const baseName = selectedFile.name.replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
+  const outputName = `${baseName || "voter_roll"}.xlsx`;
+  const entries = response.headers.get("X-Total-Entries") || "unknown";
+  const missing = response.headers.get("X-Missing-Key-Fields") || "unknown";
+
+  els.downloadLink.href = activeDownloadUrl;
+  els.downloadLink.download = outputName;
+  els.downloadLink.hidden = false;
+  els.downloadLink.textContent = `Download ${outputName}`;
+  setProgress(100);
+  setStatus("Done");
+  setSummary(`${entries} entries. ${missing} rows with missing key fields.`);
+  log(`Backend done. ${entries} entries, ${missing} rows with missing key fields.`, "ok");
+}
+
 async function convert() {
   if (!selectedFile) return;
   els.convertBtn.disabled = true;
@@ -502,6 +546,12 @@ async function convert() {
   setProgress(0);
 
   try {
+    const backendUrl = els.backendUrl.value.trim();
+    if (backendUrl) {
+      await convertWithBackend(backendUrl);
+      return;
+    }
+
     await loadLibraries();
     const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
     const endPageInput = Number.parseInt(els.endPage.value, 10);
