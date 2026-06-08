@@ -7,10 +7,12 @@ Static browser tool for converting scanned voter-roll PDFs into `.xlsx`.
 Open `index.html` from a static web server or GitHub Pages, then:
 
 1. Drag in a scanned PDF.
-2. Confirm polling station text.
-3. Confirm start/end voter-entry pages.
+2. Confirm start/end voter-entry pages.
 4. Click **Generate Excel**.
 5. Use the download link when the logs show completion.
+
+The tool parses Assembly Constituency, Section, and Polling Station details from
+the PDF and adds them to the Excel rows.
 
 The hosted Railway backend URL is filled in by default for faster Python OCR.
 Clear **Backend API URL** to run browser-only OCR instead.

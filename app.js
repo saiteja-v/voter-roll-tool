@@ -20,7 +20,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-job-interrupt-message";
+const APP_VERSION = "20260608-page-metadata";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -507,8 +507,12 @@ async function convertWithBackend(apiUrl) {
   const endpoint = `${baseUrl}/jobs`;
   const form = new FormData();
   form.append("file", selectedFile);
-  form.append("polling_station", els.pollingStation.value.trim());
-  form.append("section_heading", els.sectionHeading.value.trim());
+  if (els.pollingStation?.value.trim()) {
+    form.append("polling_station", els.pollingStation.value.trim());
+  }
+  if (els.sectionHeading?.value.trim()) {
+    form.append("section_heading", els.sectionHeading.value.trim());
+  }
   form.append("start_page", String(startPage));
   if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
 
