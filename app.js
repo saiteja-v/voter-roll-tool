@@ -20,7 +20,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-async-jobs";
+const APP_VERSION = "20260608-hosted-backend";
 
 let selectedFile = null;
 let pdfjsLib = null;
