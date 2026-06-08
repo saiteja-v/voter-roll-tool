@@ -18,6 +18,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
+const APP_VERSION = "20260608-ocr-words";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -471,4 +472,4 @@ els.clearBtn.addEventListener("click", () => {
   log("Logs cleared.");
 });
 
-log("Ready. Choose a scanned voter-roll PDF to begin.");
+log(`Ready. Version ${APP_VERSION}. Choose a scanned voter-roll PDF to begin.`);
