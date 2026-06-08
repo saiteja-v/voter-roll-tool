@@ -46,6 +46,7 @@ The page prints live logs for:
 
 ## Railway Backend
 
-Deploy the `backend` folder to Railway, then paste the Railway app URL into
-**Backend API URL**. The frontend posts the PDF to `/convert` and downloads the
-server-generated Excel.
+Deploy the private backend repo to Railway, then paste the Railway app URL into
+**Backend API URL**. The frontend submits an async job, polls progress, shows a
+shimmer while the backend works, and displays the download link when Excel is
+ready.

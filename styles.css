@@ -189,6 +189,7 @@ button.secondary:hover {
   border-radius: 999px;
   background: #e8edf3;
   overflow: hidden;
+  position: relative;
 }
 
 #progressBar {
@@ -197,6 +198,23 @@ button.secondary:hover {
   border-radius: inherit;
   background: var(--ok);
   transition: width 180ms ease;
+}
+
+.progress-wrap.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .log-panel {

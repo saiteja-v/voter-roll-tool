@@ -8,6 +8,7 @@ const els = {
   summary: document.querySelector("#summary"),
   readyStatus: document.querySelector("#readyStatus"),
   progressBar: document.querySelector("#progressBar"),
+  progressWrap: document.querySelector(".progress-wrap"),
   canvas: document.querySelector("#pageCanvas"),
   pollingStation: document.querySelector("#pollingStation"),
   sectionHeading: document.querySelector("#sectionHeading"),
@@ -19,7 +20,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-backend-option";
+const APP_VERSION = "20260608-async-jobs";
 
 let selectedFile = null;
 let pdfjsLib = null;
@@ -42,6 +43,10 @@ function setProgress(percent) {
 
 function setSummary(text) {
   els.summary.textContent = text;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function loadLibraries() {
@@ -498,7 +503,8 @@ function downloadWorkbook(workbook, sourceName) {
 async function convertWithBackend(apiUrl) {
   const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
   const endPageInput = Number.parseInt(els.endPage.value, 10);
-  const endpoint = `${apiUrl.replace(/\/+$/, "")}/convert`;
+  const baseUrl = apiUrl.replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/jobs`;
   const form = new FormData();
   form.append("file", selectedFile);
   form.append("polling_station", els.pollingStation.value.trim());
@@ -506,8 +512,9 @@ async function convertWithBackend(apiUrl) {
   form.append("start_page", String(startPage));
   if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
 
-  log(`Uploading PDF to backend: ${endpoint}`);
-  setSummary("Backend conversion running");
+  log(`Submitting backend job: ${endpoint}`);
+  setSummary("Uploading PDF to backend");
+  els.progressWrap.classList.add("shimmer");
   const response = await fetch(endpoint, { method: "POST", body: form });
   if (!response.ok) {
     let detail = "";
@@ -520,13 +527,38 @@ async function convertWithBackend(apiUrl) {
     throw new Error(`Backend conversion failed (${response.status}).${detail}`);
   }
 
-  const blob = await response.blob();
+  const created = await response.json();
+  log(`Job created: ${created.job_id}`);
+  let job = created;
+  while (!["completed", "failed"].includes(job.status)) {
+    setProgress(Number(job.progress) || 0);
+    setSummary(job.message || "Backend job running");
+    log(`Job ${job.status}: ${job.progress}% - ${job.message || "working"}`);
+    await sleep(2000);
+    const statusResponse = await fetch(`${baseUrl}/jobs/${job.job_id}`);
+    if (!statusResponse.ok) {
+      throw new Error(`Could not fetch job status (${statusResponse.status}).`);
+    }
+    job = await statusResponse.json();
+  }
+
+  setProgress(Number(job.progress) || 100);
+  if (job.status === "failed") {
+    throw new Error(job.message || "Backend job failed.");
+  }
+
+  log(`Job completed: ${job.entries} entries, ${job.missing_key_fields} rows with missing key fields.`, "ok");
+  setSummary("Success. Excel is ready to download.");
+  const downloadResponse = await fetch(`${baseUrl}/jobs/${job.job_id}/download`);
+  if (!downloadResponse.ok) {
+    throw new Error(`Download failed (${downloadResponse.status}).`);
+  }
+
+  const blob = await downloadResponse.blob();
   if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
   activeDownloadUrl = URL.createObjectURL(blob);
   const baseName = selectedFile.name.replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
   const outputName = `${baseName || "voter_roll"}.xlsx`;
-  const entries = response.headers.get("X-Total-Entries") || "unknown";
-  const missing = response.headers.get("X-Missing-Key-Fields") || "unknown";
 
   els.downloadLink.href = activeDownloadUrl;
   els.downloadLink.download = outputName;
@@ -534,8 +566,8 @@ async function convertWithBackend(apiUrl) {
   els.downloadLink.textContent = `Download ${outputName}`;
   setProgress(100);
   setStatus("Done");
-  setSummary(`${entries} entries. ${missing} rows with missing key fields.`);
-  log(`Backend done. ${entries} entries, ${missing} rows with missing key fields.`, "ok");
+  setSummary(`Success. ${job.entries} entries. ${job.missing_key_fields} rows with missing key fields.`);
+  log(`Download ready: ${outputName}`, "ok");
 }
 
 async function convert() {
@@ -611,6 +643,7 @@ async function convert() {
     setSummary("Conversion failed");
     log(error?.message || String(error), "warn");
   } finally {
+    els.progressWrap.classList.remove("shimmer");
     els.convertBtn.disabled = false;
   }
 }
