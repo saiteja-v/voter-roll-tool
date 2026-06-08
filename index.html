@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voter Roll PDF to Excel</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="title-row">
+          <div>
+            <h1>Voter Roll PDF to Excel</h1>
+            <p>Drop a scanned voter-roll PDF and download a formatted Excel file.</p>
+          </div>
+          <div class="status-pill" id="readyStatus">Ready</div>
+        </div>
+
+        <label class="drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" />
+          <span class="drop-icon">PDF</span>
+          <strong>Drag PDF here</strong>
+          <small>or click to choose a file</small>
+        </label>
+
+        <div class="form-grid">
+          <label>
+            <span>No. and Name of Polling Station</span>
+            <input id="pollingStation" value="1 - P Siddarampuram" />
+          </label>
+          <label>
+            <span>Highlighted Section Heading</span>
+            <input id="sectionHeading" value="Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM" />
+          </label>
+          <label>
+            <span>Start Page</span>
+            <input id="startPage" type="number" min="1" value="3" />
+          </label>
+          <label>
+            <span>End Page</span>
+            <input id="endPage" type="number" min="1" value="29" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="convertBtn" type="button" disabled>Generate Excel</button>
+          <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
+          <a id="downloadLink" class="download-link" hidden>Download Excel</a>
+        </div>
+
+        <div class="progress-wrap" aria-label="Progress">
+          <div id="progressBar"></div>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="log-heading">
+          <h2>Logs</h2>
+          <span id="summary">No file selected</span>
+        </div>
+        <pre id="logs" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <canvas id="pageCanvas" hidden></canvas>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+# Voter Roll PDF to Excel
+
+Static browser tool for converting scanned voter-roll PDFs into `.xlsx`.
+
+## Use
+
+Open `index.html` from a static web server or GitHub Pages, then:
+
+1. Drag in a scanned PDF.
+2. Confirm polling station text.
+3. Confirm start/end voter-entry pages.
+4. Click **Generate Excel**.
+5. Use the download link when the logs show completion.
+
+## GitHub Pages
+
+Commit the `voter-roll-tool` folder and enable GitHub Pages for the repository.
+If Pages serves the repository root, the tool URL will be:
+
+```text
+https://YOUR-USERNAME.github.io/YOUR-REPO/voter-roll-tool/
+```
+
+## Logs
+
+The page prints live logs for:
+
+- PDF file selected
+- Library loading
+- PDF page count
+- Page rendering
+- OCR progress per page
+- Voter entries found per page
+- Total Excel rows
+- Missing key field count
+
+## Notes
+
+- The PDF never leaves the browser.
+- The first load needs internet because the static page uses CDN libraries for PDF rendering, OCR, and Excel export.
+- Browser OCR is slower than the Python tool. Expect larger rolls to take a few minutes.
+- The parser is tuned for the 3-column Election Roll box layout used in the tested PDF.

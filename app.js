@@ -1,0 +1,427 @@
+const els = {
+  dropZone: document.querySelector("#dropZone"),
+  fileInput: document.querySelector("#fileInput"),
+  convertBtn: document.querySelector("#convertBtn"),
+  clearBtn: document.querySelector("#clearBtn"),
+  downloadLink: document.querySelector("#downloadLink"),
+  logs: document.querySelector("#logs"),
+  summary: document.querySelector("#summary"),
+  readyStatus: document.querySelector("#readyStatus"),
+  progressBar: document.querySelector("#progressBar"),
+  canvas: document.querySelector("#pageCanvas"),
+  pollingStation: document.querySelector("#pollingStation"),
+  sectionHeading: document.querySelector("#sectionHeading"),
+  startPage: document.querySelector("#startPage"),
+  endPage: document.querySelector("#endPage"),
+};
+
+const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+const TARGET_WIDTH = 1653;
+
+let selectedFile = null;
+let pdfjsLib = null;
+let activeDownloadUrl = null;
+
+function log(message, type = "info") {
+  const stamp = new Date().toLocaleTimeString();
+  const marker = type === "warn" ? "!" : type === "ok" ? "*" : "-";
+  els.logs.textContent += `[${stamp}] ${marker} ${message}\n`;
+  els.logs.scrollTop = els.logs.scrollHeight;
+}
+
+function setStatus(text) {
+  els.readyStatus.textContent = text;
+}
+
+function setProgress(percent) {
+  els.progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+function setSummary(text) {
+  els.summary.textContent = text;
+}
+
+async function loadLibraries() {
+  if (!pdfjsLib) {
+    log("Loading PDF renderer...");
+    pdfjsLib = await import(PDFJS_URL);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  }
+  if (!window.Tesseract) {
+    throw new Error("OCR library did not load. Check your internet connection and refresh.");
+  }
+  if (!window.XLSX) {
+    throw new Error("Excel library did not load. Check your internet connection and refresh.");
+  }
+}
+
+function acceptFile(file) {
+  const isPdf = file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
+  if (!isPdf) {
+    log("Please choose a PDF file.", "warn");
+    return;
+  }
+  selectedFile = file;
+  els.convertBtn.disabled = false;
+  els.downloadLink.hidden = true;
+  setProgress(0);
+  setStatus("PDF loaded");
+  setSummary(`${file.name} selected`);
+  log(`Selected file: ${file.name} (${formatBytes(file.size)})`);
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function normalizeId(text) {
+  const compact = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return /^[A-Z]{3}\d{7}$/.test(compact) ? compact : null;
+}
+
+function cleanText(text) {
+  return String(text || "")
+    .replaceAll("|", "I")
+    .replace(/\s+/g, " ")
+    .replace(/Name\s+:/g, "Name:")
+    .replace(/Number\s+:/g, "Number:")
+    .replace(/Age\s+:/g, "Age:")
+    .replace(/Gender\s+:/g, "Gender:")
+    .trim();
+}
+
+function gridFor(width, height) {
+  const scaleX = width / 1653;
+  const scaleY = height / 2339;
+  return {
+    colLefts: [38, 566, 1095].map((value) => value * scaleX),
+    colWidth: 520 * scaleX,
+    rowTops: Array.from({ length: 10 }, (_, index) => (75 + 220.5 * index) * scaleY),
+    rowHeight: 205 * scaleY,
+  };
+}
+
+function cellPosition(cx, cy, grid) {
+  let col = 0;
+  let row = 0;
+  let bestCol = Number.POSITIVE_INFINITY;
+  let bestRow = Number.POSITIVE_INFINITY;
+
+  grid.colLefts.forEach((left, index) => {
+    const distance = Math.abs(cx - (left + grid.colWidth / 2));
+    if (distance < bestCol) {
+      bestCol = distance;
+      col = index;
+    }
+  });
+
+  grid.rowTops.forEach((top, index) => {
+    const distance = Math.abs(cy - (top + 18 * (grid.rowHeight / 205)));
+    if (distance < bestRow) {
+      bestRow = distance;
+      row = index;
+    }
+  });
+
+  return { row, col };
+}
+
+function cellBounds(cx, cy, grid) {
+  const { row, col } = cellPosition(cx, cy, grid);
+  return {
+    x1: grid.colLefts[col] - 8,
+    y1: grid.rowTops[row] - 10,
+    x2: grid.colLefts[col] + grid.colWidth + 8,
+    y2: grid.rowTops[row] + grid.rowHeight,
+    row,
+    col,
+  };
+}
+
+function lineFromTesseract(line) {
+  const box = line.bbox || {};
+  const x1 = box.x0 ?? 0;
+  const y1 = box.y0 ?? 0;
+  const x2 = box.x1 ?? 0;
+  const y2 = box.y1 ?? 0;
+  return {
+    text: line.text || "",
+    x1,
+    y1,
+    x2,
+    y2,
+    cx: (x1 + x2) / 2,
+    cy: (y1 + y2) / 2,
+    confidence: line.confidence ?? 0,
+  };
+}
+
+function parseCell(lines, voterId) {
+  const useful = lines
+    .slice()
+    .sort((a, b) => a.cy - b.cy || a.x1 - b.x1)
+    .map((line) => cleanText(line.text))
+    .filter((text) => {
+      const compact = text.replace(/\s+/g, "");
+      if (!text || /^photo$/i.test(text) || /^available$/i.test(text)) return false;
+      if (normalizeId(text) === voterId) return false;
+      if (/^\d{1,4}$/.test(compact)) return false;
+      return !/Photo|Available/i.test(text);
+    });
+
+  let name = "";
+  let relationType = "";
+  const relationParts = [];
+  let houseNumber = "";
+  let age = "";
+  let gender = "";
+  let mode = null;
+
+  for (const text of useful) {
+    if (/^Name\s*:/i.test(text)) {
+      name = text.replace(/^Name\s*:\s*/i, "").trim();
+      mode = "name";
+      continue;
+    }
+
+    const relation = text.match(/^(Fathers|Husbands|Mothers|Others)\s*Name\s*:\s*(.*)$/i);
+    if (relation) {
+      relationType = {
+        fathers: "Father",
+        husbands: "Husband",
+        mothers: "Mother",
+        others: "Other",
+      }[relation[1].toLowerCase()] || relation[1];
+      if (relation[2].trim()) relationParts.push(relation[2].trim());
+      mode = "relation";
+      continue;
+    }
+
+    const house = text.match(/^House\s*Number\s*:\s*(.*)$/i);
+    if (house) {
+      houseNumber = house[1].trim();
+      mode = null;
+      continue;
+    }
+
+    const ageGender = text.match(/Age\s*:?\s*(\d{1,3})\s*Gend(?:er|ler)\s*:?\s*(Male|Female|M|F)/i);
+    if (ageGender) {
+      age = ageGender[1];
+      gender = /^m/i.test(ageGender[2]) ? "Male" : "Female";
+      mode = null;
+      continue;
+    }
+
+    if (mode === "relation" && !/House|Age|Gender|Gendler/i.test(text)) {
+      relationParts.push(text.trim());
+    } else if (mode === "name" && !relationType && !/House|Age|Gender|Gendler/i.test(text)) {
+      name = `${name} ${text}`.trim();
+    }
+  }
+
+  return {
+    "Voter ID": voterId,
+    Name: name,
+    "Relation Type": relationType,
+    "Relation Name": relationParts.join(" ").trim(),
+    "House Number": houseNumber,
+    Age: age,
+    Gender: gender,
+  };
+}
+
+async function renderPage(pdf, pageNumber) {
+  const page = await pdf.getPage(pageNumber);
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = TARGET_WIDTH / baseViewport.width;
+  const viewport = page.getViewport({ scale });
+  const context = els.canvas.getContext("2d", { willReadFrequently: true });
+
+  els.canvas.width = Math.floor(viewport.width);
+  els.canvas.height = Math.floor(viewport.height);
+  await page.render({ canvasContext: context, viewport }).promise;
+  return els.canvas;
+}
+
+async function ocrCanvas(canvas, pageNumber) {
+  const result = await window.Tesseract.recognize(canvas, "eng", {
+    logger: (event) => {
+      if (event.status === "recognizing text" && Number.isFinite(event.progress)) {
+        const percent = Math.round(event.progress * 100);
+        setSummary(`OCR page ${pageNumber}: ${percent}%`);
+      }
+    },
+  });
+  return (result.data.lines || []).map(lineFromTesseract);
+}
+
+function extractRowsFromPage(lines, pageNumber, width, height) {
+  const grid = gridFor(width, height);
+  const idLines = lines
+    .map((line) => ({ voterId: normalizeId(line.text), line }))
+    .filter((item) => item.voterId);
+  const seen = new Set();
+  const entries = [];
+
+  for (const { voterId, line } of idLines) {
+    if (seen.has(voterId)) continue;
+    seen.add(voterId);
+    const bounds = cellBounds(line.cx, line.cy, grid);
+    const cellLines = lines.filter(
+      (candidate) =>
+        candidate.cx >= bounds.x1 &&
+        candidate.cx <= bounds.x2 &&
+        candidate.cy >= bounds.y1 &&
+        candidate.cy <= bounds.y2,
+    );
+    entries.push({
+      pageNumber,
+      row: bounds.row,
+      col: bounds.col,
+      parsed: parseCell(cellLines, voterId),
+    });
+  }
+
+  entries.sort((a, b) => a.row - b.row || a.col - b.col);
+  return entries;
+}
+
+function buildWorkbook(rows, sectionHeading) {
+  const headers = [
+    "No. and Name of Polling Station",
+    "Serial No",
+    "Voter ID",
+    "Name",
+    "Relation Type",
+    "Relation Name",
+    "House Number",
+    "Age",
+    "Gender",
+  ];
+  const data = [[sectionHeading], headers, ...rows.map((row) => headers.map((header) => row[header] || ""))];
+  const worksheet = window.XLSX.utils.aoa_to_sheet(data);
+  worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+  worksheet["!cols"] = [
+    { wch: 30 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 34 },
+    { wch: 14 },
+    { wch: 36 },
+    { wch: 16 },
+    { wch: 8 },
+    { wch: 10 },
+  ];
+  worksheet["!autofilter"] = { ref: `A2:I${rows.length + 2}` };
+
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "Voter Roll");
+  return workbook;
+}
+
+function downloadWorkbook(workbook, sourceName) {
+  if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
+  const baseName = sourceName.replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
+  const outputName = `${baseName || "voter_roll"}.xlsx`;
+  const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  activeDownloadUrl = URL.createObjectURL(blob);
+  els.downloadLink.href = activeDownloadUrl;
+  els.downloadLink.download = outputName;
+  els.downloadLink.hidden = false;
+  els.downloadLink.textContent = `Download ${outputName}`;
+  return outputName;
+}
+
+async function convert() {
+  if (!selectedFile) return;
+  els.convertBtn.disabled = true;
+  els.downloadLink.hidden = true;
+  setStatus("Working");
+  setProgress(0);
+
+  try {
+    await loadLibraries();
+    const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
+    const endPageInput = Number.parseInt(els.endPage.value, 10);
+    const fileBuffer = await selectedFile.arrayBuffer();
+    log("Opening PDF in browser...");
+    const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
+    const endPage = Math.min(pdf.numPages, Number.isFinite(endPageInput) ? endPageInput : pdf.numPages);
+    log(`PDF pages: ${pdf.numPages}. Processing pages ${startPage} to ${endPage}.`);
+
+    const allEntries = [];
+    for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
+      log(`Rendering page ${pageNumber}...`);
+      const canvas = await renderPage(pdf, pageNumber);
+      log(`OCR page ${pageNumber} at ${canvas.width}x${canvas.height}px...`);
+      const lines = await ocrCanvas(canvas, pageNumber);
+      const entries = extractRowsFromPage(lines, pageNumber, canvas.width, canvas.height);
+      allEntries.push(...entries);
+      const progress = ((pageNumber - startPage + 1) / (endPage - startPage + 1)) * 90;
+      setProgress(progress);
+      log(`Page ${pageNumber}: ${lines.length} text lines, ${entries.length} voter entries found.`);
+    }
+
+    allEntries.sort((a, b) => a.pageNumber - b.pageNumber || a.row - b.row || a.col - b.col);
+    const rows = allEntries.map((entry, index) => ({
+      "No. and Name of Polling Station": els.pollingStation.value.trim(),
+      "Serial No": index + 1,
+      ...entry.parsed,
+    }));
+
+    const missing = rows.filter(
+      (row) => !row["Voter ID"] || !row.Name || !row["House Number"] || !row.Age || !row.Gender,
+    );
+    log(`Building Excel workbook with ${rows.length} rows...`);
+    if (missing.length) {
+      log(`${missing.length} rows have missing key fields. Review the downloaded file.`, "warn");
+    }
+    const workbook = buildWorkbook(rows, els.sectionHeading.value.trim());
+    const outputName = downloadWorkbook(workbook, selectedFile.name);
+    setProgress(100);
+    setStatus("Done");
+    setSummary(`${rows.length} entries. ${missing.length} rows with missing key fields.`);
+    log(`Done. ${rows.length} entries exported to ${outputName}.`, "ok");
+  } catch (error) {
+    setStatus("Error");
+    setSummary("Conversion failed");
+    log(error?.message || String(error), "warn");
+  } finally {
+    els.convertBtn.disabled = false;
+  }
+}
+
+els.dropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  els.dropZone.classList.add("dragging");
+});
+
+els.dropZone.addEventListener("dragleave", () => {
+  els.dropZone.classList.remove("dragging");
+});
+
+els.dropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  els.dropZone.classList.remove("dragging");
+  acceptFile(event.dataTransfer.files?.[0]);
+});
+
+els.fileInput.addEventListener("change", (event) => {
+  acceptFile(event.target.files?.[0]);
+});
+
+els.convertBtn.addEventListener("click", convert);
+
+els.clearBtn.addEventListener("click", () => {
+  els.logs.textContent = "";
+  log("Logs cleared.");
+});
+
+log("Ready. Choose a scanned voter-roll PDF to begin.");
