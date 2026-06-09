@@ -106,7 +106,7 @@ small,
 .mode-grid {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -164,6 +164,18 @@ small,
 
 .form-grid.tabular-mode label:not(.wide-field) {
   display: none;
+}
+
+.form-grid:not(.telugu-columns-mode) .columns-field {
+  display: none;
+}
+
+.form-grid.telugu-columns-mode label:not(.wide-field):not(.columns-field) {
+  display: none;
+}
+
+.columns-field {
+  grid-column: 1 / -1;
 }
 
 .wide-field {

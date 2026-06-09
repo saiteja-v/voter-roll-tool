@@ -14,6 +14,10 @@ Open `index.html` from a static web server or GitHub Pages, then:
 The tool parses Assembly Constituency, Section, and Polling Station details from
 the PDF and adds them to the Excel rows.
 
+Use **Add Telugu columns** for existing `.xlsx` files. Enter comma-separated
+column names such as `Name,RelationshipType,RelationshipName`; the backend adds
+Telugu transliteration columns to the returned workbook.
+
 The hosted Railway backend URL is filled in by default for faster Python OCR.
 Clear **Backend API URL** to run browser-only OCR instead.
 

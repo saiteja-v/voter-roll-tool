@@ -7,6 +7,8 @@ const els = {
   logs: document.querySelector("#logs"),
   summary: document.querySelector("#summary"),
   readyStatus: document.querySelector("#readyStatus"),
+  dropIcon: document.querySelector("#dropIcon"),
+  dropTitle: document.querySelector("#dropTitle"),
   progressBar: document.querySelector("#progressBar"),
   progressWrap: document.querySelector(".progress-wrap"),
   formGrid: document.querySelector(".form-grid"),
@@ -14,6 +16,7 @@ const els = {
   canvas: document.querySelector("#pageCanvas"),
   pollingStation: document.querySelector("#pollingStation"),
   sectionHeading: document.querySelector("#sectionHeading"),
+  columnsToConvert: document.querySelector("#columnsToConvert"),
   startPage: document.querySelector("#startPage"),
   endPage: document.querySelector("#endPage"),
   backendUrl: document.querySelector("#backendUrl"),
@@ -22,7 +25,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-two-converters";
+const APP_VERSION = "20260609-telugu-columns";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -58,12 +61,25 @@ function setMode(mode) {
     button.setAttribute("aria-pressed", String(selected));
   });
   els.formGrid.classList.toggle("tabular-mode", mode === "tabular");
+  els.formGrid.classList.toggle("telugu-columns-mode", mode === "telugu-columns");
+  if (mode === "telugu-columns") {
+    els.fileInput.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    els.dropIcon.textContent = "XLSX";
+    els.dropTitle.textContent = "Drag Excel file here";
+  } else {
+    els.fileInput.accept = "application/pdf,.pdf";
+    els.dropIcon.textContent = "PDF";
+    els.dropTitle.textContent = "Drag PDF here";
+  }
   setProgress(0);
   els.downloadLink.hidden = true;
   setStatus(selectedFile ? "PDF loaded" : "Ready");
   if (mode === "tabular") {
     setSummary(selectedFile ? `${selectedFile.name} selected for Telugu tabular conversion` : "Telugu text-layer PDF mode");
     log("Mode selected: Telugu tabular roll. Uses fast text/table extraction, no OCR.");
+  } else if (mode === "telugu-columns") {
+    setSummary(selectedFile ? `${selectedFile.name} selected for Telugu column conversion` : "Excel Telugu-column mode");
+    log("Mode selected: Add Telugu columns. Upload Excel and enter column names.");
   } else {
     setSummary(selectedFile ? `${selectedFile.name} selected for scanned OCR conversion` : "Scanned voter-roll OCR mode");
     log("Mode selected: Scanned voter roll. Uses OCR and page range.");
@@ -89,16 +105,20 @@ async function loadLibraries() {
 }
 
 function acceptFile(file) {
+  const isExcelMode = converterMode === "telugu-columns";
   const isPdf = file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
-  if (!isPdf) {
-    log("Please choose a PDF file.", "warn");
+  const isXlsx =
+    file &&
+    (file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || /\.xlsx$/i.test(file.name));
+  if ((isExcelMode && !isXlsx) || (!isExcelMode && !isPdf)) {
+    log(isExcelMode ? "Please choose an .xlsx file." : "Please choose a PDF file.", "warn");
     return;
   }
   selectedFile = file;
   els.convertBtn.disabled = false;
   els.downloadLink.hidden = true;
   setProgress(0);
-  setStatus("PDF loaded");
+  setStatus(isExcelMode ? "Excel loaded" : "PDF loaded");
   setSummary(`${file.name} selected`);
   log(`Selected file: ${file.name} (${formatBytes(file.size)})`);
 }
@@ -640,6 +660,52 @@ async function convertTabularWithBackend(apiUrl) {
   log(`Download ready: ${outputName}`, "ok");
 }
 
+async function addTeluguColumnsWithBackend(apiUrl) {
+  const baseUrl = apiUrl.replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/add-telugu-columns`;
+  const columns = els.columnsToConvert.value.trim();
+  if (!columns) {
+    throw new Error("Enter at least one column name to convert.");
+  }
+
+  const form = new FormData();
+  form.append("file", selectedFile);
+  form.append("columns", columns);
+
+  log(`Submitting Telugu column conversion: ${endpoint}`);
+  log(`Columns: ${columns}`);
+  setSummary("Uploading Excel to backend");
+  els.progressWrap.classList.add("shimmer");
+  setProgress(20);
+
+  const response = await fetch(endpoint, { method: "POST", body: form });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = await response.json();
+      detail = json.detail ? ` ${json.detail}` : "";
+    } catch {
+      detail = ` ${await response.text()}`;
+    }
+    throw new Error(`Telugu column conversion failed (${response.status}).${detail}`);
+  }
+
+  const blob = await response.blob();
+  if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
+  activeDownloadUrl = URL.createObjectURL(blob);
+  const baseName = selectedFile.name.replace(/\.xlsx$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
+  const outputName = `${baseName || "workbook"}_with_telugu_columns.xlsx`;
+
+  els.downloadLink.href = activeDownloadUrl;
+  els.downloadLink.download = outputName;
+  els.downloadLink.hidden = false;
+  els.downloadLink.textContent = `Download ${outputName}`;
+  setProgress(100);
+  setStatus("Done");
+  setSummary("Success. Excel is ready to download.");
+  log(`Download ready: ${outputName}`, "ok");
+}
+
 async function convert() {
   if (!selectedFile) return;
   els.convertBtn.disabled = true;
@@ -649,6 +715,14 @@ async function convert() {
 
   try {
     const backendUrl = els.backendUrl.value.trim();
+    if (converterMode === "telugu-columns") {
+      if (!backendUrl) {
+        throw new Error("Telugu column conversion needs the backend API URL.");
+      }
+      await addTeluguColumnsWithBackend(backendUrl);
+      return;
+    }
+
     if (converterMode === "tabular") {
       if (!backendUrl) {
         throw new Error("Telugu tabular conversion needs the backend API URL.");
@@ -748,7 +822,12 @@ els.fileInput.addEventListener("change", (event) => {
 els.convertBtn.addEventListener("click", convert);
 
 els.modeButtons.forEach((button) => {
-  button.addEventListener("click", () => setMode(button.dataset.mode));
+  button.addEventListener("click", () => {
+    selectedFile = null;
+    els.fileInput.value = "";
+    els.convertBtn.disabled = true;
+    setMode(button.dataset.mode);
+  });
 });
 
 els.clearBtn.addEventListener("click", () => {

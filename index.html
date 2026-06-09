@@ -14,7 +14,7 @@
         <div class="title-row">
           <div>
             <h1>Voter Roll PDF to Excel</h1>
-            <p>Choose the PDF type, drop the file, and download a formatted Excel file.</p>
+            <p>Choose the file type, drop the file, and download a formatted Excel file.</p>
           </div>
           <div class="status-pill" id="readyStatus">Ready</div>
         </div>
@@ -28,16 +28,24 @@
             <span>Telugu tabular roll</span>
             <small>Text-layer Telugu PDFs. Faster direct table extraction, no OCR.</small>
           </button>
+          <button class="mode-card" type="button" data-mode="telugu-columns">
+            <span>Add Telugu columns</span>
+            <small>Excel files. Type column names and add Telugu transliteration columns.</small>
+          </button>
         </div>
 
         <label class="drop-zone" id="dropZone">
           <input id="fileInput" type="file" accept="application/pdf,.pdf" />
-          <span class="drop-icon">PDF</span>
-          <strong>Drag PDF here</strong>
+          <span class="drop-icon" id="dropIcon">PDF</span>
+          <strong id="dropTitle">Drag PDF here</strong>
           <small>or click to choose a file</small>
         </label>
 
         <div class="form-grid">
+          <label class="columns-field">
+            <span>Columns to Convert</span>
+            <input id="columnsToConvert" value="Name,RelationshipType,RelationshipName" />
+          </label>
           <label>
             <span>Start Page</span>
             <input id="startPage" type="number" min="1" value="3" />
@@ -77,6 +85,6 @@
     </main>
 
     <canvas id="pageCanvas" hidden></canvas>
-    <script src="./app.js?v=20260608-two-converters" type="module"></script>
+    <script src="./app.js?v=20260609-telugu-columns" type="module"></script>
   </body>
 </html>
