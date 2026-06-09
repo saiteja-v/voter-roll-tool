@@ -14,9 +14,20 @@
         <div class="title-row">
           <div>
             <h1>Voter Roll PDF to Excel</h1>
-            <p>Drop a scanned voter-roll PDF and download a formatted Excel file.</p>
+            <p>Choose the PDF type, drop the file, and download a formatted Excel file.</p>
           </div>
           <div class="status-pill" id="readyStatus">Ready</div>
+        </div>
+
+        <div class="mode-grid" aria-label="Converter type">
+          <button class="mode-card selected" type="button" data-mode="scanned">
+            <span>Scanned voter roll</span>
+            <small>Image PDFs. Uses OCR and page range. Best for English scanned rolls.</small>
+          </button>
+          <button class="mode-card" type="button" data-mode="tabular">
+            <span>Telugu tabular roll</span>
+            <small>Text-layer Telugu PDFs. Faster direct table extraction, no OCR.</small>
+          </button>
         </div>
 
         <label class="drop-zone" id="dropZone">
@@ -66,6 +77,6 @@
     </main>
 
     <canvas id="pageCanvas" hidden></canvas>
-    <script src="./app.js?v=20260608-page-metadata" type="module"></script>
+    <script src="./app.js?v=20260608-two-converters" type="module"></script>
   </body>
 </html>

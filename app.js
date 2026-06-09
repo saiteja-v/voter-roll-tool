@@ -9,6 +9,8 @@ const els = {
   readyStatus: document.querySelector("#readyStatus"),
   progressBar: document.querySelector("#progressBar"),
   progressWrap: document.querySelector(".progress-wrap"),
+  formGrid: document.querySelector(".form-grid"),
+  modeButtons: document.querySelectorAll("[data-mode]"),
   canvas: document.querySelector("#pageCanvas"),
   pollingStation: document.querySelector("#pollingStation"),
   sectionHeading: document.querySelector("#sectionHeading"),
@@ -20,11 +22,14 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260608-page-metadata";
+const APP_VERSION = "20260608-two-converters";
+const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
+const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
 let selectedFile = null;
 let pdfjsLib = null;
 let activeDownloadUrl = null;
+let converterMode = "scanned";
 
 function log(message, type = "info") {
   const stamp = new Date().toLocaleTimeString();
@@ -43,6 +48,26 @@ function setProgress(percent) {
 
 function setSummary(text) {
   els.summary.textContent = text;
+}
+
+function setMode(mode) {
+  converterMode = mode;
+  els.modeButtons.forEach((button) => {
+    const selected = button.dataset.mode === mode;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  els.formGrid.classList.toggle("tabular-mode", mode === "tabular");
+  setProgress(0);
+  els.downloadLink.hidden = true;
+  setStatus(selectedFile ? "PDF loaded" : "Ready");
+  if (mode === "tabular") {
+    setSummary(selectedFile ? `${selectedFile.name} selected for Telugu tabular conversion` : "Telugu text-layer PDF mode");
+    log("Mode selected: Telugu tabular roll. Uses fast text/table extraction, no OCR.");
+  } else {
+    setSummary(selectedFile ? `${selectedFile.name} selected for scanned OCR conversion` : "Scanned voter-roll OCR mode");
+    log("Mode selected: Scanned voter roll. Uses OCR and page range.");
+  }
 }
 
 function sleep(ms) {
@@ -577,6 +602,44 @@ async function convertWithBackend(apiUrl) {
   log(`Download ready: ${outputName}`, "ok");
 }
 
+async function convertTabularWithBackend(apiUrl) {
+  const baseUrl = apiUrl.replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/convert-tabular`;
+  const form = new FormData();
+  form.append("file", selectedFile);
+
+  log(`Submitting Telugu tabular conversion: ${endpoint}`);
+  setSummary("Uploading PDF to backend");
+  els.progressWrap.classList.add("shimmer");
+  setProgress(20);
+  const response = await fetch(endpoint, { method: "POST", body: form });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = await response.json();
+      detail = json.detail ? ` ${json.detail}` : "";
+    } catch {
+      detail = ` ${await response.text()}`;
+    }
+    throw new Error(`Tabular conversion failed (${response.status}).${detail}`);
+  }
+
+  const blob = await response.blob();
+  if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
+  activeDownloadUrl = URL.createObjectURL(blob);
+  const baseName = selectedFile.name.replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
+  const outputName = `${baseName || "telugu_voter_roll"}.xlsx`;
+
+  els.downloadLink.href = activeDownloadUrl;
+  els.downloadLink.download = outputName;
+  els.downloadLink.hidden = false;
+  els.downloadLink.textContent = `Download ${outputName}`;
+  setProgress(100);
+  setStatus("Done");
+  setSummary("Success. Excel is ready to download.");
+  log(`Download ready: ${outputName}`, "ok");
+}
+
 async function convert() {
   if (!selectedFile) return;
   els.convertBtn.disabled = true;
@@ -586,6 +649,14 @@ async function convert() {
 
   try {
     const backendUrl = els.backendUrl.value.trim();
+    if (converterMode === "tabular") {
+      if (!backendUrl) {
+        throw new Error("Telugu tabular conversion needs the backend API URL.");
+      }
+      await convertTabularWithBackend(backendUrl);
+      return;
+    }
+
     if (backendUrl) {
       await convertWithBackend(backendUrl);
       return;
@@ -627,7 +698,7 @@ async function convert() {
 
     allEntries.sort((a, b) => a.pageNumber - b.pageNumber || a.row - b.row || a.col - b.col);
     const rows = allEntries.map((entry, index) => ({
-      "No. and Name of Polling Station": els.pollingStation.value.trim(),
+      "No. and Name of Polling Station": els.pollingStation?.value.trim() || DEFAULT_POLLING_STATION,
       "Serial No": index + 1,
       ...entry.parsed,
     }));
@@ -639,7 +710,7 @@ async function convert() {
     if (missing.length) {
       log(`${missing.length} rows have missing key fields. Review the downloaded file.`, "warn");
     }
-    const workbook = buildWorkbook(rows, els.sectionHeading.value.trim());
+    const workbook = buildWorkbook(rows, els.sectionHeading?.value.trim() || DEFAULT_SECTION_HEADING);
     const outputName = downloadWorkbook(workbook, selectedFile.name);
     setProgress(100);
     setStatus("Done");
@@ -676,9 +747,14 @@ els.fileInput.addEventListener("change", (event) => {
 
 els.convertBtn.addEventListener("click", convert);
 
+els.modeButtons.forEach((button) => {
+  button.addEventListener("click", () => setMode(button.dataset.mode));
+});
+
 els.clearBtn.addEventListener("click", () => {
   els.logs.textContent = "";
   log("Logs cleared.");
 });
 
-log(`Ready. Version ${APP_VERSION}. Choose a scanned voter-roll PDF to begin.`);
+setMode("scanned");
+log(`Ready. Version ${APP_VERSION}. Choose a voter-roll PDF to begin.`);
