@@ -14,7 +14,12 @@ const els = {
   downloadLink: document.querySelector("#downloadLink"),
   backendUrl: document.querySelector("#backendUrl"),
   progressBar: document.querySelector("#progressBar"),
-  progressWrap: document.querySelector(".progress-wrap"),
+  progressWrap: document.querySelector(".merge-progress-bar"),
+  mergeProgress: document.querySelector("#mergeProgress"),
+  progressTitle: document.querySelector("#progressTitle"),
+  progressDetail: document.querySelector("#progressDetail"),
+  progressPercent: document.querySelector("#progressPercent"),
+  steps: document.querySelectorAll("[data-step]"),
   logs: document.querySelector("#logs"),
   summary: document.querySelector("#summary"),
 };
@@ -35,12 +40,32 @@ function log(message, type = "info") {
 }
 
 function setProgress(percent) {
-  els.progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+  els.progressBar.style.width = `${safePercent}%`;
+  els.progressPercent.textContent = `${Math.round(safePercent)}%`;
 }
 
 function setStatus(text) {
   els.readyStatus.textContent = text;
   els.statusMetric.textContent = text;
+}
+
+function setStep(activeStep, doneSteps = []) {
+  els.steps.forEach((step) => {
+    const name = step.dataset.step;
+    step.classList.toggle("active", name === activeStep);
+    step.classList.toggle("done", doneSteps.includes(name));
+  });
+}
+
+function setProgressState(kind, title, detail, percent, activeStep, doneSteps = []) {
+  els.mergeProgress.classList.toggle("running", kind === "running");
+  els.mergeProgress.classList.toggle("done", kind === "done");
+  els.mergeProgress.classList.toggle("error", kind === "error");
+  els.progressTitle.textContent = title;
+  els.progressDetail.textContent = detail;
+  setProgress(percent);
+  setStep(activeStep, doneSteps);
 }
 
 function formatBytes(bytes) {
@@ -59,6 +84,7 @@ function updateReadyState() {
   if (baseFile && compareFile) {
     els.summary.textContent = "Ready to merge by EPIC ID";
     setStatus("Ready");
+    setProgressState("idle", "Ready to compare", "Both files are selected. Start the merge when ready.", 0, "upload");
   }
 }
 
@@ -127,11 +153,12 @@ async function mergeFiles() {
   }
 
   els.mergeBtn.disabled = true;
+  els.mergeBtn.textContent = "Uploading...";
   els.downloadLink.hidden = true;
   els.progressWrap.classList.add("shimmer");
-  setProgress(10);
   setStatus("Uploading");
   els.summary.textContent = "Uploading files to backend";
+  setProgressState("running", "Merge in progress", "Step 1 of 4: Uploading files to the backend", 10, "upload");
 
   try {
     const endpoint = `${baseUrl}/merge-epic`;
@@ -141,7 +168,7 @@ async function mergeFiles() {
 
     log(`Submitting merge job: ${endpoint}`);
     log("Matching mode: exact EPIC ID");
-    setProgress(20);
+    setProgressState("running", "Merge in progress", "Step 1 of 4: Uploading files to the backend", 20, "upload");
 
     const response = await fetch(endpoint, { method: "POST", body: form });
     if (!response.ok) {
@@ -150,10 +177,24 @@ async function mergeFiles() {
 
     let job = await response.json();
     log(`Merge job created: ${job.job_id}`);
+    els.mergeBtn.textContent = "Merging...";
+    setProgressState("running", "Merge in progress", "Step 2 of 4: Merge job started", Number(job.progress) || 25, "job", ["upload"]);
     while (!["completed", "failed"].includes(job.status)) {
-      setProgress(Number(job.progress) || 0);
       setStatus(job.status === "queued" ? "Queued" : "Running");
       els.summary.textContent = job.message || "Merge job running";
+      const progress = Number(job.progress) || 0;
+      const detail =
+        progress >= 30
+          ? `Step 3 of 4: ${job.message || "Matching records by EPIC ID"}`
+          : `Step 2 of 4: ${job.message || "Waiting for merge job to start"}`;
+      setProgressState(
+        "running",
+        "Merge in progress",
+        detail,
+        progress,
+        progress >= 30 ? "merge" : "job",
+        progress >= 30 ? ["upload", "job"] : ["upload"],
+      );
       log(`Job ${job.status}: ${job.progress}% - ${job.message || "working"}`);
       await sleep(2500);
 
@@ -174,6 +215,7 @@ async function mergeFiles() {
 
     log("Merge complete. Downloading result.", "ok");
     els.summary.textContent = "Merge complete. Preparing download.";
+    setProgressState("running", "Merge in progress", "Step 4 of 4: Preparing download", 95, "download", ["upload", "job", "merge"]);
     const downloadUrl = job.download_url ? `${baseUrl}${job.download_url}` : `${baseUrl}/jobs/${job.job_id}/download`;
     const downloadResponse = await fetch(downloadUrl);
     if (!downloadResponse.ok) {
@@ -190,17 +232,22 @@ async function mergeFiles() {
     els.downloadLink.textContent = `Download ${name}`;
     els.downloadLink.hidden = false;
 
-    setProgress(100);
     setStatus("Done");
     els.summary.textContent = "Merged Excel is ready to download";
+    setProgressState("done", "Download ready", "The merged Excel file is ready.", 100, "download", ["upload", "job", "merge", "download"]);
+    els.mergeBtn.textContent = "Compare Again";
     log(`Download ready: ${name}`, "ok");
   } catch (error) {
     setStatus("Error");
     els.summary.textContent = "Merge failed";
+    setProgressState("error", "Merge failed", error?.message || String(error), 100, "merge", ["upload"]);
     log(error?.message || String(error), "warn");
   } finally {
     els.progressWrap.classList.remove("shimmer");
     els.mergeBtn.disabled = !(baseFile && compareFile);
+    if (!["Done"].includes(els.statusMetric.textContent)) {
+      els.mergeBtn.textContent = "Compare Lists and Create Excel";
+    }
   }
 }
 
@@ -214,4 +261,5 @@ els.clearBtn.addEventListener("click", () => {
 
 wireDrop(els.baseDrop, "base");
 wireDrop(els.compareDrop, "compare");
+setProgressState("idle", "Ready to compare", "Choose both Excel files, then start the merge.", 0, "upload");
 log("Ready. Choose two Excel voter-roll files to merge by EPIC ID.");

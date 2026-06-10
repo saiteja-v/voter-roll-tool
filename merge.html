@@ -57,14 +57,41 @@
           </label>
         </div>
 
+        <section class="merge-progress" id="mergeProgress" aria-live="polite">
+          <div class="merge-progress-head">
+            <div>
+              <h2 id="progressTitle">Ready to compare</h2>
+              <p id="progressDetail">Choose both Excel files, then start the merge.</p>
+            </div>
+            <strong id="progressPercent">0%</strong>
+          </div>
+          <div class="progress-wrap merge-progress-bar" aria-label="Merge progress">
+            <div id="progressBar"></div>
+          </div>
+          <div class="step-grid" id="stepGrid">
+            <div class="step active" data-step="upload">
+              <span>1</span>
+              <strong>Files selected</strong>
+            </div>
+            <div class="step" data-step="job">
+              <span>2</span>
+              <strong>Job started</strong>
+            </div>
+            <div class="step" data-step="merge">
+              <span>3</span>
+              <strong>Matching EPIC IDs</strong>
+            </div>
+            <div class="step" data-step="download">
+              <span>4</span>
+              <strong>Download ready</strong>
+            </div>
+          </div>
+        </section>
+
         <div class="actions">
-          <button id="mergeBtn" type="button" disabled>Merge Files</button>
+          <button id="mergeBtn" type="button" disabled>Compare Lists and Create Excel</button>
           <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
           <a id="downloadLink" class="download-link" hidden>Download Merged Excel</a>
-        </div>
-
-        <div class="progress-wrap" aria-label="Progress">
-          <div id="progressBar"></div>
         </div>
       </section>
 
@@ -98,6 +125,6 @@
       </section>
     </main>
 
-    <script src="./merge.js?v=20260610-merge-epic-jobs" type="module"></script>
+    <script src="./merge.js?v=20260610-merge-progress-panel" type="module"></script>
   </body>
 </html>
