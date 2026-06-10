@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Group Voter Roll by Family ID</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="title-row">
+          <div>
+            <h1>Group Voter Roll by Family ID</h1>
+            <p>
+              Upload one Excel voter-roll file. The tool sorts records by F.ID, keeps family members together, and adds a blank row between family groups.
+            </p>
+          </div>
+          <div class="top-actions">
+            <a class="text-link" href="./merge.html">Merge voter rolls</a>
+            <a class="text-link" href="./index.html">PDF tools</a>
+            <div class="status-pill" id="readyStatus">Ready</div>
+          </div>
+        </div>
+
+        <div class="single-upload">
+          <label class="file-card" id="familyDrop">
+            <input id="familyFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            <span class="drop-icon">XLSX</span>
+            <strong>Voter Roll Excel File</strong>
+            <small>File must include F.ID and PS Sl No columns.</small>
+            <span class="file-name" id="familyName">No file selected</span>
+          </label>
+        </div>
+
+        <div class="info-strip">
+          <span>Groups by F.ID</span>
+          <span>Sorts within families by PS Sl No</span>
+          <span>Adds blank rows between groups</span>
+        </div>
+
+        <div class="form-grid merge-form">
+          <label class="wide-field">
+            <span>Backend API URL</span>
+            <input
+              id="backendUrl"
+              value="https://voter-roll-backend-production.up.railway.app"
+              placeholder="https://your-railway-app.up.railway.app"
+            />
+          </label>
+        </div>
+
+        <section class="merge-progress" id="familyProgress" aria-live="polite">
+          <div class="merge-progress-head">
+            <div>
+              <h2 id="progressTitle">Ready to group</h2>
+              <p id="progressDetail">Choose an Excel file, then start grouping.</p>
+            </div>
+            <strong id="progressPercent">0%</strong>
+          </div>
+          <div class="progress-wrap merge-progress-bar" aria-label="Family grouping progress">
+            <div id="progressBar"></div>
+          </div>
+          <div class="step-grid family-steps" id="stepGrid">
+            <div class="step active" data-step="upload">
+              <span>1</span>
+              <strong>File selected</strong>
+            </div>
+            <div class="step" data-step="job">
+              <span>2</span>
+              <strong>Job started</strong>
+            </div>
+            <div class="step" data-step="group">
+              <span>3</span>
+              <strong>Grouping families</strong>
+            </div>
+            <div class="step" data-step="download">
+              <span>4</span>
+              <strong>Download ready</strong>
+            </div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="groupBtn" type="button" disabled>Group Families and Create Excel</button>
+          <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
+          <a id="downloadLink" class="download-link" hidden>Download Grouped Excel</a>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="log-heading">
+          <h2>Result</h2>
+          <span id="summary">Choose an Excel file to begin</span>
+        </div>
+        <div class="metric-grid family-metrics" id="metrics">
+          <div class="metric">
+            <span>Selected file</span>
+            <strong id="fileMetric">Not selected</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="statusMetric">Waiting</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="log-heading">
+          <h2>Logs</h2>
+          <span>Family grouping activity</span>
+        </div>
+        <pre id="logs" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <script src="./family.js?v=20260610-family-grouping" type="module"></script>
+  </body>
+</html>
