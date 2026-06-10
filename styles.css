@@ -49,6 +49,24 @@ body {
   gap: 12px;
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.text-link {
+  color: var(--blue-dark);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
 h1,
 h2,
 p {
@@ -101,6 +119,67 @@ small,
 
 .drop-zone input {
   display: none;
+}
+
+.merge-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.file-card {
+  min-height: 190px;
+  border: 2px dashed #a9b4c3;
+  border-radius: 8px;
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: #fbfcfe;
+  text-align: center;
+}
+
+.file-card.dragging {
+  border-color: var(--blue);
+  background: #eef4ff;
+}
+
+.file-card input {
+  display: none;
+}
+
+.file-card strong,
+.drop-zone strong {
+  font-size: 17px;
+}
+
+.file-name {
+  width: 100%;
+  min-height: 24px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.info-strip {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.info-strip span {
+  padding: 7px 10px;
+  border: 1px solid #c8d3e0;
+  border-radius: 999px;
+  background: #f5f8fc;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .mode-grid {
@@ -180,6 +259,10 @@ small,
 
 .wide-field {
   grid-column: 1 / -1;
+}
+
+.merge-form {
+  grid-template-columns: 1fr;
 }
 
 label span {
@@ -294,6 +377,40 @@ button.secondary:hover {
   min-height: 360px;
 }
 
+.result-panel {
+  min-height: 150px;
+}
+
+.metric-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric {
+  min-height: 86px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.metric span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.metric strong {
+  color: var(--ink);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
 #logs {
   min-height: 300px;
   max-height: 520px;
@@ -311,13 +428,16 @@ button.secondary:hover {
 
 @media (max-width: 820px) {
   .title-row,
-  .log-heading {
+  .log-heading,
+  .top-actions {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .mode-grid,
-  .form-grid {
+  .form-grid,
+  .merge-grid,
+  .metric-grid {
     grid-template-columns: 1fr;
   }
 }

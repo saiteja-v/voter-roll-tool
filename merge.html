@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voter Roll Merge by EPIC ID</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="title-row">
+          <div>
+            <h1>Voter Roll Merge by EPIC ID</h1>
+            <p>
+              Upload two Excel voter-roll files. The tool matches records by EPIC ID and returns one merged Excel file with a Notes column showing available, old-only, and new-only records.
+            </p>
+          </div>
+          <div class="top-actions">
+            <a class="text-link" href="./index.html">PDF tools</a>
+            <div class="status-pill" id="readyStatus">Ready</div>
+          </div>
+        </div>
+
+        <div class="merge-grid">
+          <label class="file-card" id="baseDrop">
+            <input id="baseFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            <span class="drop-icon">XLSX</span>
+            <strong>Old / Base File</strong>
+            <small>Example: 2014 voter-roll Excel</small>
+            <span class="file-name" id="baseName">No file selected</span>
+          </label>
+
+          <label class="file-card" id="compareDrop">
+            <input id="compareFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            <span class="drop-icon">XLSX</span>
+            <strong>New / Compare File</strong>
+            <small>Example: 2024 voter-roll Excel</small>
+            <span class="file-name" id="compareName">No file selected</span>
+          </label>
+        </div>
+
+        <div class="info-strip">
+          <span>Exact EPIC ID match</span>
+          <span>Keeps extra columns</span>
+          <span>Adds clear status notes</span>
+        </div>
+
+        <div class="form-grid merge-form">
+          <label class="wide-field">
+            <span>Backend API URL</span>
+            <input
+              id="backendUrl"
+              value="https://voter-roll-backend-production.up.railway.app"
+              placeholder="https://your-railway-app.up.railway.app"
+            />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="mergeBtn" type="button" disabled>Merge Files</button>
+          <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
+          <a id="downloadLink" class="download-link" hidden>Download Merged Excel</a>
+        </div>
+
+        <div class="progress-wrap" aria-label="Progress">
+          <div id="progressBar"></div>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="log-heading">
+          <h2>Result</h2>
+          <span id="summary">Choose both Excel files to begin</span>
+        </div>
+        <div class="metric-grid" id="metrics">
+          <div class="metric">
+            <span>Base file</span>
+            <strong id="baseMetric">Not selected</strong>
+          </div>
+          <div class="metric">
+            <span>Compare file</span>
+            <strong id="compareMetric">Not selected</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="statusMetric">Waiting</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="log-heading">
+          <h2>Logs</h2>
+          <span>Merge activity</span>
+        </div>
+        <pre id="logs" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <script src="./merge.js?v=20260610-merge-epic" type="module"></script>
+  </body>
+</html>
