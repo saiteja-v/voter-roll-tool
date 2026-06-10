@@ -23,6 +23,10 @@ let baseFile = null;
 let compareFile = null;
 let activeDownloadUrl = null;
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function log(message, type = "info") {
   const stamp = new Date().toLocaleTimeString();
   const marker = type === "warn" ? "!" : type === "ok" ? "*" : "-";
@@ -135,18 +139,48 @@ async function mergeFiles() {
     form.append("file_a", baseFile);
     form.append("file_b", compareFile);
 
-    log(`Submitting merge request: ${endpoint}`);
+    log(`Submitting merge job: ${endpoint}`);
     log("Matching mode: exact EPIC ID");
-    setProgress(35);
+    setProgress(20);
 
     const response = await fetch(endpoint, { method: "POST", body: form });
     if (!response.ok) {
-      throw new Error(`Merge failed (${response.status}).${await readError(response)}`);
+      throw new Error(`Merge job failed to start (${response.status}).${await readError(response)}`);
     }
 
-    setProgress(85);
+    let job = await response.json();
+    log(`Merge job created: ${job.job_id}`);
+    while (!["completed", "failed"].includes(job.status)) {
+      setProgress(Number(job.progress) || 0);
+      setStatus(job.status === "queued" ? "Queued" : "Running");
+      els.summary.textContent = job.message || "Merge job running";
+      log(`Job ${job.status}: ${job.progress}% - ${job.message || "working"}`);
+      await sleep(2500);
+
+      const statusResponse = await fetch(`${baseUrl}/jobs/${job.job_id}`);
+      if (!statusResponse.ok) {
+        if (statusResponse.status === 404) {
+          throw new Error("The backend lost this merge job, usually because the server restarted. Please run the merge again.");
+        }
+        throw new Error(`Could not fetch job status (${statusResponse.status}).`);
+      }
+      job = await statusResponse.json();
+    }
+
+    setProgress(Number(job.progress) || 100);
+    if (job.status === "failed") {
+      throw new Error(job.message || "Merge job failed.");
+    }
+
+    log("Merge complete. Downloading result.", "ok");
     els.summary.textContent = "Merge complete. Preparing download.";
-    const blob = await response.blob();
+    const downloadUrl = job.download_url ? `${baseUrl}${job.download_url}` : `${baseUrl}/jobs/${job.job_id}/download`;
+    const downloadResponse = await fetch(downloadUrl);
+    if (!downloadResponse.ok) {
+      throw new Error(`Download failed (${downloadResponse.status}).`);
+    }
+
+    const blob = await downloadResponse.blob();
     if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
     activeDownloadUrl = URL.createObjectURL(blob);
 
