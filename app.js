@@ -25,7 +25,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260609-telugu-columns";
+const APP_VERSION = "20260609-openai-telugu-columns";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -78,8 +78,8 @@ function setMode(mode) {
     setSummary(selectedFile ? `${selectedFile.name} selected for Telugu tabular conversion` : "Telugu text-layer PDF mode");
     log("Mode selected: Telugu tabular roll. Uses fast text/table extraction, no OCR.");
   } else if (mode === "telugu-columns") {
-    setSummary(selectedFile ? `${selectedFile.name} selected for Telugu column conversion` : "Excel Telugu-column mode");
-    log("Mode selected: Add Telugu columns. Upload Excel and enter column names.");
+    setSummary(selectedFile ? `${selectedFile.name} selected for AI Telugu column conversion` : "AI Telugu-column mode");
+    log("Mode selected: AI Telugu columns. Upload Excel and enter column names.");
   } else {
     setSummary(selectedFile ? `${selectedFile.name} selected for scanned OCR conversion` : "Scanned voter-roll OCR mode");
     log("Mode selected: Scanned voter roll. Uses OCR and page range.");
@@ -662,7 +662,7 @@ async function convertTabularWithBackend(apiUrl) {
 
 async function addTeluguColumnsWithBackend(apiUrl) {
   const baseUrl = apiUrl.replace(/\/+$/, "");
-  const endpoint = `${baseUrl}/add-telugu-columns`;
+  const endpoint = `${baseUrl}/openai-telugu-column-jobs`;
   const columns = els.columnsToConvert.value.trim();
   if (!columns) {
     throw new Error("Enter at least one column name to convert.");
@@ -671,12 +671,14 @@ async function addTeluguColumnsWithBackend(apiUrl) {
   const form = new FormData();
   form.append("file", selectedFile);
   form.append("columns", columns);
+  form.append("model", "gpt-4.1-nano");
+  form.append("chunk_size", "100");
 
-  log(`Submitting Telugu column conversion: ${endpoint}`);
+  log(`Submitting AI Telugu column job: ${endpoint}`);
   log(`Columns: ${columns}`);
   setSummary("Uploading Excel to backend");
   els.progressWrap.classList.add("shimmer");
-  setProgress(20);
+  setProgress(5);
 
   const response = await fetch(endpoint, { method: "POST", body: form });
   if (!response.ok) {
@@ -687,10 +689,41 @@ async function addTeluguColumnsWithBackend(apiUrl) {
     } catch {
       detail = ` ${await response.text()}`;
     }
-    throw new Error(`Telugu column conversion failed (${response.status}).${detail}`);
+    throw new Error(`AI Telugu column job failed to start (${response.status}).${detail}`);
   }
 
-  const blob = await response.blob();
+  const created = await response.json();
+  log(`Translation job created: ${created.job_id}`);
+  let job = created;
+  while (!["completed", "failed"].includes(job.status)) {
+    setProgress(Number(job.progress) || 0);
+    setSummary(job.message || "Translation job running");
+    const total = job.pages_total ? ` (${job.pages_done || 0}/${job.pages_total})` : "";
+    log(`Job ${job.status}: ${job.progress}% - ${job.message || "working"}${total}`);
+    await sleep(3000);
+    const statusResponse = await fetch(`${baseUrl}/jobs/${job.job_id}`);
+    if (!statusResponse.ok) {
+      if (statusResponse.status === 404) {
+        throw new Error("The backend lost this job, usually because the server restarted while translation was running. Please run the Excel again.");
+      }
+      throw new Error(`Could not fetch job status (${statusResponse.status}).`);
+    }
+    job = await statusResponse.json();
+  }
+
+  setProgress(Number(job.progress) || 100);
+  if (job.status === "failed") {
+    throw new Error(job.message || "AI Telugu column job failed.");
+  }
+
+  log(`Job completed: ${job.entries} unique strings translated, ${job.missing_key_fields} missing translations.`, "ok");
+  setSummary("Success. Excel is ready to download.");
+  const downloadResponse = await fetch(`${baseUrl}/jobs/${job.job_id}/download`);
+  if (!downloadResponse.ok) {
+    throw new Error(`Download failed (${downloadResponse.status}).`);
+  }
+
+  const blob = await downloadResponse.blob();
   if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
   activeDownloadUrl = URL.createObjectURL(blob);
   const baseName = selectedFile.name.replace(/\.xlsx$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
@@ -702,7 +735,7 @@ async function addTeluguColumnsWithBackend(apiUrl) {
   els.downloadLink.textContent = `Download ${outputName}`;
   setProgress(100);
   setStatus("Done");
-  setSummary("Success. Excel is ready to download.");
+  setSummary(`Success. ${job.entries} unique strings translated.`);
   log(`Download ready: ${outputName}`, "ok");
 }
 
