@@ -18,14 +18,13 @@ const els = {
   sectionHeading: document.querySelector("#sectionHeading"),
   startPage: document.querySelector("#startPage"),
   endPage: document.querySelector("#endPage"),
-  aiRepair: document.querySelector("#aiRepair"),
   backendUrl: document.querySelector("#backendUrl"),
 };
 
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260610-remove-telugu-columns";
+const APP_VERSION = "20260611-default-ai-repair";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -546,12 +545,10 @@ async function convertWithBackend(apiUrl) {
   }
   form.append("start_page", String(startPage));
   if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
-  if (els.aiRepair?.checked) {
-    form.append("repair_with_ai", "true");
-    form.append("ai_model", "gpt-4.1-mini");
-    form.append("ai_repair_concurrency", "3");
-    log("AI repair enabled: suspicious or missing rows will be checked with cropped cell images.");
-  }
+  form.append("repair_with_ai", "true");
+  form.append("ai_model", "gpt-4.1-mini");
+  form.append("ai_repair_concurrency", "3");
+  log("AI repair is included automatically for suspicious or missing rows.");
 
   log(`Submitting backend job: ${endpoint}`);
   setSummary("Uploading PDF to backend");
