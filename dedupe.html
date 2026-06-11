@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Group Voter Roll by Family ID</title>
+    <title>Remove Duplicate Rows</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,15 +11,15 @@
       <section class="panel">
         <div class="title-row">
           <div>
-            <h1>Group Voter Roll by Family ID</h1>
+            <h1>Remove Duplicate Rows</h1>
             <p>
-              Upload one Excel voter-roll file. The tool sorts records by F.ID, keeps family members together, and adds a blank row between family groups.
+              Upload an Excel file and remove exact duplicate rows using all columns.
             </p>
           </div>
           <div class="top-actions">
-            <a class="text-link" href="./dedupe.html">Remove duplicates</a>
             <a class="text-link" href="./transliterate.html">Telugu to English</a>
             <a class="text-link" href="./house.html">Fix house numbers</a>
+            <a class="text-link" href="./family.html">Group families</a>
             <a class="text-link" href="./merge.html">Merge voter rolls</a>
             <a class="text-link" href="./index.html">PDF tools</a>
             <div class="status-pill" id="readyStatus">Ready</div>
@@ -27,22 +27,26 @@
         </div>
 
         <div class="single-upload">
-          <label class="file-card" id="familyDrop">
-            <input id="familyFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+          <label class="file-card" id="dedupeDrop">
+            <input id="dedupeFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
             <span class="drop-icon">XLSX</span>
-            <strong>Voter Roll Excel File</strong>
-            <small>File must include F.ID and PS Sl No columns.</small>
-            <span class="file-name" id="familyName">No file selected</span>
+            <strong>Excel File</strong>
+            <small>Keeps the first copy and removes later rows only when every column matches.</small>
+            <span class="file-name" id="dedupeName">No file selected</span>
           </label>
         </div>
 
         <div class="info-strip">
-          <span>Groups by F.ID</span>
-          <span>Sorts within families by PS Sl No</span>
-          <span>Adds blank rows between groups</span>
+          <span>Checks all columns</span>
+          <span>Keeps first row</span>
+          <span>Skips blank rows</span>
         </div>
 
         <div class="form-grid merge-form">
+          <label>
+            <span>Header Row</span>
+            <input id="headerRow" type="number" min="1" value="1" />
+          </label>
           <label class="wide-field">
             <span>Backend API URL</span>
             <input
@@ -53,15 +57,15 @@
           </label>
         </div>
 
-        <section class="merge-progress" id="familyProgress" aria-live="polite">
+        <section class="merge-progress" id="dedupeProgress" aria-live="polite">
           <div class="merge-progress-head">
             <div>
-              <h2 id="progressTitle">Ready to group</h2>
-              <p id="progressDetail">Choose an Excel file, then start grouping.</p>
+              <h2 id="progressTitle">Ready to remove duplicates</h2>
+              <p id="progressDetail">Choose an Excel file, then start duplicate removal.</p>
             </div>
             <strong id="progressPercent">0%</strong>
           </div>
-          <div class="progress-wrap merge-progress-bar" aria-label="Family grouping progress">
+          <div class="progress-wrap merge-progress-bar" aria-label="Duplicate removal progress">
             <div id="progressBar"></div>
           </div>
           <div class="step-grid family-steps" id="stepGrid">
@@ -69,25 +73,21 @@
               <span>1</span>
               <strong>File selected</strong>
             </div>
-            <div class="step" data-step="job">
+            <div class="step" data-step="send">
               <span>2</span>
-              <strong>Job started</strong>
-            </div>
-            <div class="step" data-step="group">
-              <span>3</span>
-              <strong>Grouping families</strong>
+              <strong>Removing rows</strong>
             </div>
             <div class="step" data-step="download">
-              <span>4</span>
+              <span>3</span>
               <strong>Download ready</strong>
             </div>
           </div>
         </section>
 
         <div class="actions">
-          <button id="groupBtn" type="button" disabled>Group Families and Create Excel</button>
+          <button id="dedupeBtn" type="button" disabled>Remove Duplicate Rows</button>
           <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
-          <a id="downloadLink" class="download-link" hidden>Download Grouped Excel</a>
+          <a id="downloadLink" class="download-link" hidden>Download Deduped Excel</a>
         </div>
       </section>
 
@@ -105,18 +105,26 @@
             <span>Status</span>
             <strong id="statusMetric">Waiting</strong>
           </div>
+          <div class="metric">
+            <span>Rows removed</span>
+            <strong id="removedMetric">0</strong>
+          </div>
+          <div class="metric">
+            <span>Remaining rows</span>
+            <strong id="remainingMetric">0</strong>
+          </div>
         </div>
       </section>
 
       <section class="panel log-panel">
         <div class="log-heading">
           <h2>Logs</h2>
-          <span>Family grouping activity</span>
+          <span>Duplicate removal activity</span>
         </div>
         <pre id="logs" aria-live="polite"></pre>
       </section>
     </main>
 
-    <script src="./family.js?v=20260610-family-grouping" type="module"></script>
+    <script src="./dedupe.js?v=20260611-remove-duplicates" type="module"></script>
   </body>
 </html>
