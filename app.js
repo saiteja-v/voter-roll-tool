@@ -19,13 +19,14 @@ const els = {
   columnsToConvert: document.querySelector("#columnsToConvert"),
   startPage: document.querySelector("#startPage"),
   endPage: document.querySelector("#endPage"),
+  aiRepair: document.querySelector("#aiRepair"),
   backendUrl: document.querySelector("#backendUrl"),
 };
 
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260609-openai-telugu-columns";
+const APP_VERSION = "20260610-ai-cell-repair";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -560,6 +561,12 @@ async function convertWithBackend(apiUrl) {
   }
   form.append("start_page", String(startPage));
   if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
+  if (els.aiRepair?.checked) {
+    form.append("repair_with_ai", "true");
+    form.append("ai_model", "gpt-4.1-mini");
+    form.append("ai_repair_concurrency", "3");
+    log("AI repair enabled: suspicious or missing rows will be checked with cropped cell images.");
+  }
 
   log(`Submitting backend job: ${endpoint}`);
   setSummary("Uploading PDF to backend");
@@ -599,7 +606,11 @@ async function convertWithBackend(apiUrl) {
     throw new Error(job.message || "Backend job failed.");
   }
 
-  log(`Job completed: ${job.entries} entries, ${job.missing_key_fields} rows with missing key fields.`, "ok");
+  const aiText =
+    job.ai_repair_candidates || job.ai_repaired
+      ? ` AI repaired ${job.ai_repaired || 0}/${job.ai_repair_candidates || 0} flagged rows.`
+      : "";
+  log(`Job completed: ${job.entries} entries, ${job.missing_key_fields} rows with missing key fields.${aiText}`, "ok");
   setSummary("Success. Excel is ready to download.");
   const downloadResponse = await fetch(`${baseUrl}/jobs/${job.job_id}/download`);
   if (!downloadResponse.ok) {
@@ -618,7 +629,7 @@ async function convertWithBackend(apiUrl) {
   els.downloadLink.textContent = `Download ${outputName}`;
   setProgress(100);
   setStatus("Done");
-  setSummary(`Success. ${job.entries} entries. ${job.missing_key_fields} rows with missing key fields.`);
+  setSummary(`Success. ${job.entries} entries. ${job.missing_key_fields} rows with missing key fields.${aiText}`);
   log(`Download ready: ${outputName}`, "ok");
 }
 

@@ -273,6 +273,27 @@ small,
   grid-template-columns: 1fr;
 }
 
+.check-field {
+  min-height: 42px;
+  border: 1px solid #bdc6d2;
+  border-radius: 6px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fbfcfe;
+}
+
+.check-field input {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+}
+
+.check-field span {
+  margin: 0;
+}
+
 label span {
   display: block;
   margin-bottom: 6px;
