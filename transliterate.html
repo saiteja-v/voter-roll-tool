@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fix House Numbers</title>
+    <title>Telugu to English Columns</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,13 +11,13 @@
       <section class="panel">
         <div class="title-row">
           <div>
-            <h1>Fix House Numbers</h1>
+            <h1>Telugu to English Columns</h1>
             <p>
-              Upload an Excel voter-roll file and fix house numbers that Excel changed into dates.
+              Upload an Excel voter-roll file, enter Telugu column names, and add English transliteration columns.
             </p>
           </div>
           <div class="top-actions">
-            <a class="text-link" href="./transliterate.html">Telugu to English</a>
+            <a class="text-link" href="./house.html">Fix house numbers</a>
             <a class="text-link" href="./family.html">Group families</a>
             <a class="text-link" href="./merge.html">Merge voter rolls</a>
             <a class="text-link" href="./index.html">PDF tools</a>
@@ -26,25 +26,25 @@
         </div>
 
         <div class="single-upload">
-          <label class="file-card" id="houseDrop">
-            <input id="houseFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+          <label class="file-card" id="transliterateDrop">
+            <input id="transliterateFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
             <span class="drop-icon">XLSX</span>
             <strong>Voter Roll Excel File</strong>
-            <small>Use this when house numbers like 1-1-39 became dates.</small>
-            <span class="file-name" id="houseName">No file selected</span>
+            <small>Use columns that already contain Telugu text.</small>
+            <span class="file-name" id="transliterateName">No file selected</span>
           </label>
         </div>
 
         <div class="info-strip">
-          <span>Finds Excel date values</span>
-          <span>Restores D-M-YY house numbers</span>
-          <span>Leaves other cells unchanged</span>
+          <span>Adds English columns</span>
+          <span>Uses backend cache</span>
+          <span>Polls until ready</span>
         </div>
 
         <div class="form-grid merge-form">
-          <label>
-            <span>House Number Column</span>
-            <input id="houseColumn" value="New_Hno" />
+          <label class="wide-field">
+            <span>Telugu Columns</span>
+            <input id="columnsInput" value="ఓటరు పేరు,బంధుత్వం పేరు" />
           </label>
           <label class="wide-field">
             <span>Backend API URL</span>
@@ -56,15 +56,15 @@
           </label>
         </div>
 
-        <section class="merge-progress" id="houseProgress" aria-live="polite">
+        <section class="merge-progress" id="transliterateProgress" aria-live="polite">
           <div class="merge-progress-head">
             <div>
-              <h2 id="progressTitle">Ready to fix</h2>
-              <p id="progressDetail">Choose an Excel file, then start the fix.</p>
+              <h2 id="progressTitle">Ready to transliterate</h2>
+              <p id="progressDetail">Choose an Excel file and enter Telugu column names.</p>
             </div>
             <strong id="progressPercent">0%</strong>
           </div>
-          <div class="progress-wrap merge-progress-bar" aria-label="House number fix progress">
+          <div class="progress-wrap merge-progress-bar" aria-label="Transliteration progress">
             <div id="progressBar"></div>
           </div>
           <div class="step-grid family-steps" id="stepGrid">
@@ -72,21 +72,25 @@
               <span>1</span>
               <strong>File selected</strong>
             </div>
-            <div class="step" data-step="send">
+            <div class="step" data-step="job">
               <span>2</span>
-              <strong>Fixing numbers</strong>
+              <strong>Job started</strong>
+            </div>
+            <div class="step" data-step="transliterate">
+              <span>3</span>
+              <strong>Transliterating</strong>
             </div>
             <div class="step" data-step="download">
-              <span>3</span>
+              <span>4</span>
               <strong>Download ready</strong>
             </div>
           </div>
         </section>
 
         <div class="actions">
-          <button id="fixBtn" type="button" disabled>Fix House Numbers</button>
+          <button id="transliterateBtn" type="button" disabled>Add English Columns</button>
           <button id="clearBtn" type="button" class="secondary">Clear Logs</button>
-          <a id="downloadLink" class="download-link" hidden>Download Fixed Excel</a>
+          <a id="downloadLink" class="download-link" hidden>Download Excel</a>
         </div>
       </section>
 
@@ -105,8 +109,8 @@
             <strong id="statusMetric">Waiting</strong>
           </div>
           <div class="metric">
-            <span>Fixed cells</span>
-            <strong id="fixedMetric">0</strong>
+            <span>Columns</span>
+            <strong id="columnsMetric">Not set</strong>
           </div>
         </div>
       </section>
@@ -114,12 +118,12 @@
       <section class="panel log-panel">
         <div class="log-heading">
           <h2>Logs</h2>
-          <span>House number fix activity</span>
+          <span>Transliteration activity</span>
         </div>
         <pre id="logs" aria-live="polite"></pre>
       </section>
     </main>
 
-    <script src="./house.js?v=20260611-house-numbers" type="module"></script>
+    <script src="./transliterate.js?v=20260611-transliterate-columns" type="module"></script>
   </body>
 </html>
