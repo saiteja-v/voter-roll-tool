@@ -16,7 +16,6 @@ const els = {
   canvas: document.querySelector("#pageCanvas"),
   pollingStation: document.querySelector("#pollingStation"),
   sectionHeading: document.querySelector("#sectionHeading"),
-  columnsToConvert: document.querySelector("#columnsToConvert"),
   startPage: document.querySelector("#startPage"),
   endPage: document.querySelector("#endPage"),
   aiRepair: document.querySelector("#aiRepair"),
@@ -26,7 +25,7 @@ const els = {
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260610-ai-cell-repair";
+const APP_VERSION = "20260610-remove-telugu-columns";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -62,25 +61,15 @@ function setMode(mode) {
     button.setAttribute("aria-pressed", String(selected));
   });
   els.formGrid.classList.toggle("tabular-mode", mode === "tabular");
-  els.formGrid.classList.toggle("telugu-columns-mode", mode === "telugu-columns");
-  if (mode === "telugu-columns") {
-    els.fileInput.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    els.dropIcon.textContent = "XLSX";
-    els.dropTitle.textContent = "Drag Excel file here";
-  } else {
-    els.fileInput.accept = "application/pdf,.pdf";
-    els.dropIcon.textContent = "PDF";
-    els.dropTitle.textContent = "Drag PDF here";
-  }
+  els.fileInput.accept = "application/pdf,.pdf";
+  els.dropIcon.textContent = "PDF";
+  els.dropTitle.textContent = "Drag PDF here";
   setProgress(0);
   els.downloadLink.hidden = true;
   setStatus(selectedFile ? "PDF loaded" : "Ready");
   if (mode === "tabular") {
     setSummary(selectedFile ? `${selectedFile.name} selected for Telugu tabular conversion` : "Telugu text-layer PDF mode");
     log("Mode selected: Telugu tabular roll. Uses fast text/table extraction, no OCR.");
-  } else if (mode === "telugu-columns") {
-    setSummary(selectedFile ? `${selectedFile.name} selected for AI Telugu column conversion` : "AI Telugu-column mode");
-    log("Mode selected: AI Telugu columns. Upload Excel and enter column names.");
   } else {
     setSummary(selectedFile ? `${selectedFile.name} selected for scanned OCR conversion` : "Scanned voter-roll OCR mode");
     log("Mode selected: Scanned voter roll. Uses OCR and page range.");
@@ -106,13 +95,9 @@ async function loadLibraries() {
 }
 
 function acceptFile(file) {
-  const isExcelMode = converterMode === "telugu-columns";
   const isPdf = file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
-  const isXlsx =
-    file &&
-    (file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || /\.xlsx$/i.test(file.name));
-  if ((isExcelMode && !isXlsx) || (!isExcelMode && !isPdf)) {
-    log(isExcelMode ? "Please choose an .xlsx file." : "Please choose a PDF file.", "warn");
+  if (!isPdf) {
+    log("Please choose a PDF file.", "warn");
     return;
   }
   selectedFile = file;
@@ -671,85 +656,6 @@ async function convertTabularWithBackend(apiUrl) {
   log(`Download ready: ${outputName}`, "ok");
 }
 
-async function addTeluguColumnsWithBackend(apiUrl) {
-  const baseUrl = apiUrl.replace(/\/+$/, "");
-  const endpoint = `${baseUrl}/openai-telugu-column-jobs`;
-  const columns = els.columnsToConvert.value.trim();
-  if (!columns) {
-    throw new Error("Enter at least one column name to convert.");
-  }
-
-  const form = new FormData();
-  form.append("file", selectedFile);
-  form.append("columns", columns);
-  form.append("model", "gpt-4.1-nano");
-  form.append("chunk_size", "100");
-
-  log(`Submitting AI Telugu column job: ${endpoint}`);
-  log(`Columns: ${columns}`);
-  setSummary("Uploading Excel to backend");
-  els.progressWrap.classList.add("shimmer");
-  setProgress(5);
-
-  const response = await fetch(endpoint, { method: "POST", body: form });
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const json = await response.json();
-      detail = json.detail ? ` ${json.detail}` : "";
-    } catch {
-      detail = ` ${await response.text()}`;
-    }
-    throw new Error(`AI Telugu column job failed to start (${response.status}).${detail}`);
-  }
-
-  const created = await response.json();
-  log(`Translation job created: ${created.job_id}`);
-  let job = created;
-  while (!["completed", "failed"].includes(job.status)) {
-    setProgress(Number(job.progress) || 0);
-    setSummary(job.message || "Translation job running");
-    const total = job.pages_total ? ` (${job.pages_done || 0}/${job.pages_total})` : "";
-    log(`Job ${job.status}: ${job.progress}% - ${job.message || "working"}${total}`);
-    await sleep(3000);
-    const statusResponse = await fetch(`${baseUrl}/jobs/${job.job_id}`);
-    if (!statusResponse.ok) {
-      if (statusResponse.status === 404) {
-        throw new Error("The backend lost this job, usually because the server restarted while translation was running. Please run the Excel again.");
-      }
-      throw new Error(`Could not fetch job status (${statusResponse.status}).`);
-    }
-    job = await statusResponse.json();
-  }
-
-  setProgress(Number(job.progress) || 100);
-  if (job.status === "failed") {
-    throw new Error(job.message || "AI Telugu column job failed.");
-  }
-
-  log(`Job completed: ${job.entries} unique strings translated, ${job.missing_key_fields} missing translations.`, "ok");
-  setSummary("Success. Excel is ready to download.");
-  const downloadResponse = await fetch(`${baseUrl}/jobs/${job.job_id}/download`);
-  if (!downloadResponse.ok) {
-    throw new Error(`Download failed (${downloadResponse.status}).`);
-  }
-
-  const blob = await downloadResponse.blob();
-  if (activeDownloadUrl) URL.revokeObjectURL(activeDownloadUrl);
-  activeDownloadUrl = URL.createObjectURL(blob);
-  const baseName = selectedFile.name.replace(/\.xlsx$/i, "").replace(/[^a-z0-9_-]+/gi, "_");
-  const outputName = `${baseName || "workbook"}_with_telugu_columns.xlsx`;
-
-  els.downloadLink.href = activeDownloadUrl;
-  els.downloadLink.download = outputName;
-  els.downloadLink.hidden = false;
-  els.downloadLink.textContent = `Download ${outputName}`;
-  setProgress(100);
-  setStatus("Done");
-  setSummary(`Success. ${job.entries} unique strings translated.`);
-  log(`Download ready: ${outputName}`, "ok");
-}
-
 async function convert() {
   if (!selectedFile) return;
   els.convertBtn.disabled = true;
@@ -759,14 +665,6 @@ async function convert() {
 
   try {
     const backendUrl = els.backendUrl.value.trim();
-    if (converterMode === "telugu-columns") {
-      if (!backendUrl) {
-        throw new Error("Telugu column conversion needs the backend API URL.");
-      }
-      await addTeluguColumnsWithBackend(backendUrl);
-      return;
-    }
-
     if (converterMode === "tabular") {
       if (!backendUrl) {
         throw new Error("Telugu tabular conversion needs the backend API URL.");

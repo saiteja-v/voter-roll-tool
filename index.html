@@ -32,10 +32,6 @@
             <span>Telugu tabular roll</span>
             <small>Text-layer Telugu PDFs. Faster direct table extraction, no OCR.</small>
           </button>
-          <button class="mode-card" type="button" data-mode="telugu-columns">
-            <span>AI Telugu columns</span>
-            <small>Excel files. Type column names and add Telugu columns using the backend.</small>
-          </button>
         </div>
 
         <label class="drop-zone" id="dropZone">
@@ -46,10 +42,6 @@
         </label>
 
         <div class="form-grid">
-          <label class="columns-field">
-            <span>Columns to Convert</span>
-            <input id="columnsToConvert" value="Name,RelationshipType,RelationshipName" />
-          </label>
           <label>
             <span>Start Page</span>
             <input id="startPage" type="number" min="1" value="3" />
@@ -93,6 +85,6 @@
     </main>
 
     <canvas id="pageCanvas" hidden></canvas>
-    <script src="./app.js?v=20260610-ai-cell-repair" type="module"></script>
+    <script src="./app.js?v=20260610-remove-telugu-columns" type="module"></script>
   </body>
 </html>

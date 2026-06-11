@@ -253,18 +253,6 @@ small,
   display: none;
 }
 
-.form-grid:not(.telugu-columns-mode) .columns-field {
-  display: none;
-}
-
-.form-grid.telugu-columns-mode label:not(.wide-field):not(.columns-field) {
-  display: none;
-}
-
-.columns-field {
-  grid-column: 1 / -1;
-}
-
 .wide-field {
   grid-column: 1 / -1;
 }
