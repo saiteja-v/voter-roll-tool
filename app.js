@@ -16,15 +16,13 @@ const els = {
   canvas: document.querySelector("#pageCanvas"),
   pollingStation: document.querySelector("#pollingStation"),
   sectionHeading: document.querySelector("#sectionHeading"),
-  startPage: document.querySelector("#startPage"),
-  endPage: document.querySelector("#endPage"),
   backendUrl: document.querySelector("#backendUrl"),
 };
 
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 const TARGET_WIDTH = 1653;
-const APP_VERSION = "20260611-default-ai-repair";
+const APP_VERSION = "20260626-no-page-range";
 const DEFAULT_POLLING_STATION = "1 - P Siddarampuram";
 const DEFAULT_SECTION_HEADING = "Section No and Name 1-MPP SCHOOL ROAD,SIDDARAMPURAM";
 
@@ -531,8 +529,6 @@ function downloadWorkbook(workbook, sourceName) {
 }
 
 async function convertWithBackend(apiUrl) {
-  const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
-  const endPageInput = Number.parseInt(els.endPage.value, 10);
   const baseUrl = apiUrl.replace(/\/+$/, "");
   const endpoint = `${baseUrl}/jobs`;
   const form = new FormData();
@@ -543,8 +539,6 @@ async function convertWithBackend(apiUrl) {
   if (els.sectionHeading?.value.trim()) {
     form.append("section_heading", els.sectionHeading.value.trim());
   }
-  form.append("start_page", String(startPage));
-  if (Number.isFinite(endPageInput)) form.append("end_page", String(endPageInput));
   form.append("repair_with_ai", "true");
   form.append("ai_model", "gpt-4.1-mini");
   form.append("ai_repair_concurrency", "3");
@@ -676,13 +670,12 @@ async function convert() {
     }
 
     await loadLibraries();
-    const startPage = Math.max(1, Number.parseInt(els.startPage.value, 10) || 1);
-    const endPageInput = Number.parseInt(els.endPage.value, 10);
     const fileBuffer = await selectedFile.arrayBuffer();
     log("Opening PDF in browser...");
     const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
-    const endPage = Math.min(pdf.numPages, Number.isFinite(endPageInput) ? endPageInput : pdf.numPages);
-    log(`PDF pages: ${pdf.numPages}. Processing pages ${startPage} to ${endPage}.`);
+    const startPage = 1;
+    const endPage = pdf.numPages;
+    log(`PDF pages: ${pdf.numPages}. Processing all pages.`);
 
     const allEntries = [];
     for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
